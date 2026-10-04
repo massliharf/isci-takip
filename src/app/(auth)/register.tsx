@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert } from 'react-native';
 import { Button, Card, ErrorText, Field, FormStack, Screen } from '../../components/ui';
+import { showMessage } from '../../lib/dialog';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
@@ -24,7 +24,7 @@ export default function Register() {
     setBusy(false);
     if (error) return setError(error.message);
     if (!data.session) {
-      Alert.alert('Üyelik oluşturuldu', 'E-postanıza gelen doğrulama bağlantısına tıklayıp giriş yapın.');
+      showMessage('Üyelik oluşturuldu', 'E-postanıza gelen doğrulama bağlantısına tıklayıp giriş yapın.');
       router.back();
     }
   }

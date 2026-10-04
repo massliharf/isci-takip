@@ -1,7 +1,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import {
   Button,
   Card,
@@ -23,6 +23,7 @@ import { buildMonthReport } from '../../lib/calc';
 import { formatMoney, MONTHS, monthRange } from '../../lib/format';
 import { buildReportHtml } from '../../lib/reportHtml';
 import { supabase } from '../../lib/supabase';
+import { errorMessage, showMessage } from '../../lib/dialog';
 import { useFocusData } from '../../lib/useAsync';
 import { space } from '../../theme/tokens';
 
@@ -49,11 +50,22 @@ export default function ReportScreen() {
     try {
       const { data } = await supabase.auth.getUser();
       const business = String(data.user?.user_metadata?.business_name ?? '');
-      const { uri } = await Print.printToFileAsync({ html: buildReportHtml(title, business, report) });
+      const html = buildReportHtml(title, business, report);
+      if (Platform.OS === 'web') {
+        // Web'de expo-print yalnızca mevcut sayfayı yazdırır; raporu yeni sekmede açıp yazdır (PDF olarak kaydet)
+        const w = window.open('', '_blank');
+        if (!w) return showMessage('Pencere açılamadı', 'Tarayıcının açılır pencere engelini kapatıp tekrar deneyin.');
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        w.print();
+        return;
+      }
+      const { uri } = await Print.printToFileAsync({ html });
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: title });
-      else Alert.alert('PDF oluşturuldu', uri);
+      else showMessage('PDF oluşturuldu', uri);
     } catch (e) {
-      Alert.alert('PDF oluşturulamadı', e instanceof Error ? e.message : String(e));
+      showMessage('PDF oluşturulamadı', errorMessage(e));
     } finally {
       setSharing(false);
     }
@@ -109,7 +121,7 @@ export default function ReportScreen() {
               </Card>
             )}
           </Section>
-          <Button title="PDF olarak paylaş" icon="share" size="lg" onPress={share} loading={sharing} />
+          <Button title={Platform.OS === 'web' ? 'Yazdır / PDF kaydet' : 'PDF olarak paylaş'} icon="share" size="lg" onPress={share} loading={sharing} />
         </>
       )}
     </Screen>

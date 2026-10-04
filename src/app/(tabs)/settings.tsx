@@ -1,6 +1,7 @@
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { Button, Card, IconBox, Screen, Text } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
+import { confirmAction } from '../../lib/dialog';
 import { supabase } from '../../lib/supabase';
 import { categoryTone, space } from '../../theme/tokens';
 
@@ -29,10 +30,12 @@ export default function SettingsScreen() {
         icon="log-out"
         variant="danger"
         onPress={() =>
-          Alert.alert('Çıkış', 'Hesabınızdan çıkış yapılsın mı?', [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Çıkış yap', style: 'destructive', onPress: () => supabase.auth.signOut() },
-          ])
+          confirmAction({
+            title: 'Çıkış',
+            message: 'Hesabınızdan çıkış yapılsın mı?',
+            confirmText: 'Çıkış yap',
+            onConfirm: () => supabase.auth.signOut().then(() => undefined),
+          })
         }
       />
     </Screen>

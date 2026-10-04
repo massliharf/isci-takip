@@ -44,6 +44,13 @@ npx eas-cli@latest build --platform ios
 npx eas-cli@latest build --platform android
 ```
 
+### 4. Web (EAS Hosting)
+```bash
+npx eas-cli@latest login     # ilk sefer
+npm run deploy:web           # dist/ klasörünü oluşturur ve yayınlar → https://<ad>.expo.app
+```
+Supabase → Authentication → URL Configuration → **Site URL** alanına web adresini yaz (şifre sıfırlama e-postaları buraya yönlenir).
+
 ## Tasarım
 Arayüz, `docs/design-system.md` dosyasındaki tasarım sistemine göre yapılır (renk, tipografi, bileşenler).
 Örnek ekran görüntüleri `docs/screenshots/` altında.

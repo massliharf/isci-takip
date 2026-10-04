@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import {
   Button,
   Card,
@@ -23,6 +23,7 @@ import { deletePayment, getWorker, listAttendance, listPayments, listWorkerBalan
 import { summarizeWorker } from '../../lib/calc';
 import { formatDate, formatMoney, formatNumber, fromISODate, monthRange, toISODate } from '../../lib/format';
 import { PAYMENT_LABELS, STATUS_LABELS, type AttendanceStatus, type Payment } from '../../lib/types';
+import { confirmAction, errorMessage, showMessage } from '../../lib/dialog';
 import { useFocusData } from '../../lib/useAsync';
 import { categoryTone, palette, radius, space, statusTone } from '../../theme/tokens';
 
@@ -50,17 +51,15 @@ export default function WorkerDetail() {
   }, `${id}:${start}`);
 
   function confirmDeletePayment(p: Payment) {
-    Alert.alert('Kaydı sil', `${formatDate(p.pay_date)} tarihli ${formatMoney(Number(p.amount))} silinsin mi?`, [
-      { text: 'Vazgeç', style: 'cancel' },
-      {
-        text: 'Sil',
-        style: 'destructive',
-        onPress: async () => {
-          await deletePayment(p.id).catch((e) => Alert.alert('Silinemedi', String(e)));
-          reload();
-        },
+    confirmAction({
+      title: 'Kaydı sil',
+      message: `${formatDate(p.pay_date)} tarihli ${formatMoney(Number(p.amount))} silinsin mi?`,
+      confirmText: 'Sil',
+      onConfirm: async () => {
+        await deletePayment(p.id).catch((e) => showMessage('Silinemedi', errorMessage(e)));
+        reload();
       },
-    ]);
+    });
   }
 
   if (!data) return <Screen>{error ? <ErrorText>{error}</ErrorText> : <Loading />}</Screen>;

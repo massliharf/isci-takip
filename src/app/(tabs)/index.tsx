@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { Button, Card, DateStepper, EmptyState, ErrorText, Hint, Loading, Screen, Section, Segmented, Stat, Text } from '../../components/ui';
 import { clearAttendance, listAttendance, listWorkers, setAttendance } from '../../lib/api';
 import { attendanceEarning } from '../../lib/calc';
 import { formatMoney, toISODate } from '../../lib/format';
 import type { Attendance, AttendanceStatus, Worker } from '../../lib/types';
+import { errorMessage, showMessage } from '../../lib/dialog';
 import { useFocusData } from '../../lib/useAsync';
 import { space, statusTone } from '../../theme/tokens';
 
@@ -41,7 +42,7 @@ export default function PuantajScreen() {
       }
       setData({ ...data, attendance: next });
     } catch (e) {
-      Alert.alert('Kaydedilemedi', e instanceof Error ? e.message : String(e));
+      showMessage('Kaydedilemedi', errorMessage(e));
     } finally {
       setSaving(null);
     }
@@ -55,7 +56,7 @@ export default function PuantajScreen() {
       const saved = await Promise.all(missing.map((w) => setAttendance(w, date, 'full')));
       setData({ ...data, attendance: [...data.attendance, ...saved] });
     } catch (e) {
-      Alert.alert('Kaydedilemedi', e instanceof Error ? e.message : String(e));
+      showMessage('Kaydedilemedi', errorMessage(e));
     } finally {
       setBulkSaving(false);
     }

@@ -505,7 +505,8 @@ export function Loading() {
 
 export const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: palette.bgApp },
-  screen: { padding: space.lg, gap: space.lg, backgroundColor: palette.bgApp, flexGrow: 1 },
+  // Geniş ekranlarda (web, tablet) içerik ortada telefon genişliğinde kalır
+  screen: { padding: space.lg, gap: space.lg, backgroundColor: palette.bgApp, flexGrow: 1, width: '100%', maxWidth: 640, alignSelf: 'center' },
   card: { backgroundColor: palette.surface, borderRadius: radius.lg },
   row: { flexDirection: 'row', alignItems: 'center' },
   button: {

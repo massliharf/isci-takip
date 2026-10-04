@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, ErrorText, Field, FormStack, IconBox, Screen, Text } from '../../components/ui';
+import { showMessage } from '../../lib/dialog';
 import { supabase } from '../../lib/supabase';
 import { categoryTone, palette, space } from '../../theme/tokens';
 
@@ -24,7 +25,7 @@ export default function Login() {
     if (!email.trim()) return setError('Önce e-posta adresinizi yazın');
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
     if (error) setError(error.message);
-    else Alert.alert('E-posta gönderildi', 'Şifre sıfırlama bağlantısı e-postanıza gönderildi.');
+    else showMessage('E-posta gönderildi', 'Şifre sıfırlama bağlantısı e-postanıza gönderildi.');
   }
 
   return (

@@ -1,8 +1,8 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert } from 'react-native';
 import { Button, ErrorText, Loading, Screen } from '../../../components/ui';
 import { WorkerForm } from '../../../components/WorkerForm';
 import { deleteWorker, getWorker, updateWorker } from '../../../lib/api';
+import { confirmAction, errorMessage, showMessage } from '../../../lib/dialog';
 import { useFocusData } from '../../../lib/useAsync';
 
 export default function EditWorker() {
@@ -10,21 +10,19 @@ export default function EditWorker() {
   const { data: worker, error } = useFocusData(() => getWorker(id), id);
 
   function confirmDelete() {
-    Alert.alert('İşçiyi sil', 'İşçiye ait tüm puantaj ve ödeme kayıtları da silinecek. Emin misiniz?', [
-      { text: 'Vazgeç', style: 'cancel' },
-      {
-        text: 'Sil',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteWorker(id);
-            router.dismissAll();
-          } catch (e) {
-            Alert.alert('Silinemedi', e instanceof Error ? e.message : String(e));
-          }
-        },
+    confirmAction({
+      title: 'İşçiyi sil',
+      message: 'İşçiye ait tüm puantaj ve ödeme kayıtları da silinecek. Emin misiniz?',
+      confirmText: 'Sil',
+      onConfirm: async () => {
+        try {
+          await deleteWorker(id);
+          router.dismissAll();
+        } catch (e) {
+          showMessage('Silinemedi', errorMessage(e));
+        }
       },
-    ]);
+    });
   }
 
   return (

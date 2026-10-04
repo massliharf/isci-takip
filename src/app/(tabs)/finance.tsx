@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import {
   Card,
   currentYearMonth,
@@ -17,6 +17,7 @@ import {
 import { deleteExpense, deleteIncome, deletePayment, listExpenses, listIncomes, listPayments, listWorkers } from '../../lib/api';
 import { formatDate, formatMoney, monthRange } from '../../lib/format';
 import { PAYMENT_LABELS } from '../../lib/types';
+import { confirmAction, errorMessage, showMessage } from '../../lib/dialog';
 import { useFocusData } from '../../lib/useAsync';
 import { categoryTone, palette, space } from '../../theme/tokens';
 
@@ -103,17 +104,15 @@ export default function FinanceScreen() {
   }, start);
 
   function confirmDelete(e: Entry) {
-    Alert.alert('Kaydı sil', `${e.title} · ${formatMoney(e.amount)} silinsin mi?`, [
-      { text: 'Vazgeç', style: 'cancel' },
-      {
-        text: 'Sil',
-        style: 'destructive',
-        onPress: async () => {
-          await e.onDelete().catch((err) => Alert.alert('Silinemedi', String(err)));
-          reload();
-        },
+    confirmAction({
+      title: 'Kaydı sil',
+      message: `${e.title} · ${formatMoney(e.amount)} silinsin mi?`,
+      confirmText: 'Sil',
+      onConfirm: async () => {
+        await e.onDelete().catch((err) => showMessage('Silinemedi', errorMessage(err)));
+        reload();
       },
-    ]);
+    });
   }
 
   const workerName = (id: string) => data?.workers.find((w) => w.id === id)?.full_name ?? '?';

@@ -21,7 +21,10 @@
       "package": "com.iscitakip.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "name": "İşçi Takip",
+      "lang": "tr"
     },
     "plugins": [
       "expo-router",
