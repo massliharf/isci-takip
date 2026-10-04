@@ -31,8 +31,9 @@ iOS ve Android için **Expo (React Native)**, veritabanı ve üyelik için **Sup
 4. İstersen **Authentication → Providers → Email** altında “Confirm email”i kapatarak e-posta doğrulamasız üyelik açabilirsin.
 
 ### 2. Uygulama
+Supabase bağlantı bilgileri `src/lib/config.ts` içinde hazır. Başka bir projeye bağlamak için `.env.example` dosyasını `.env` olarak kopyalayıp değerleri değiştirebilirsin.
+
 ```bash
-cp .env.example .env      # URL ve anon key'i yaz
 npm install
 npx expo start            # Expo Go ile telefonda QR okut
 ```
