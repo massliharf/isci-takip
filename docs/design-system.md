@@ -121,11 +121,18 @@ Her zaman `Text` bileşeni kullanılır (`react-native`'in `Text`'i değil); fon
 
 İkonlar: Feather (`@expo/vector-icons/Feather`), çizgi stili; 16 (küçük buton), 18 (buton, menü), 22 (tab bar).
 
-## 7. Bilgi hiyerarşisi
+## 7. Marka, kahraman kart ve hareket
+- **Logo** (`assets/logo.svg`, `src/components/Logo.tsx`): tuğla duvarın üstünde onay işareti — "puantaj tamam". Marka gradyanı `#FF57AE → #FF8A3D` (referansın pembesi + tuğla turuncusu).
+- **Kahraman kart** (`HeroCard`): her ekranın ana rakamı koyu gradyanlı (`#141414 → #2B2530`) kartta, 38 px rakam, köşede yumuşak pembe ışık. Altında `HeroStats` ince ayırıcılı üç küçük rakam. Rakam yeni değere akarak gelir.
+- **Renk dağılımı**: nötr zemin korunur; renk kategori tonlarıyla gelir (puantaj durumları, görevler, gelir/gider kategorileri, KPI ikon kutuları). Sekme çubuğunda etkin sekme marka mürekkebi `#C2186F`.
+- **Hareket** (`src/components/motion.tsx`, `motion` token'ları): içerik aşağıdan yükselerek sırayla gelir (45 ms aralık, yay damping 18); butonlar ve çipler basınca %97'ye küçülür; segmented göstergesi yaylı kayar; ilerleme/bütçe çubukları dolarak açılır; bildirim aşağıdan kayarak çıkar.
+- **Tipografi**: Geist; büyük rakamlarda sıkı harf aralığı (−1,4), tutarlar sabit genişlikli rakamlarla (`tabular-nums`).
+
+## 8. Bilgi hiyerarşisi
 Her ekran aynı sırayı izler: **(1) ana rakam** (`Stat`) → **(2) birincil aksiyon** → **(3) destekleyici rakamlar** (`KpiRow`) → **(4) liste** → **(5) dışa aktarma** en altta.
 Tutarlar tam sayıysa kuruşsuz gösterilir (`1.500 ₺`), `₺` satır sonunda tek kalmaz.
 
-## 8. Ekran kalıpları
+## 9. Ekran kalıpları
 - **Başlık:** Ekran zemininde, gölgesiz; sekme ekranlarında sola dayalı 20 px başlık, sağda en fazla bir aksiyon.
 - **Ana rakam önce:** Her sekme bir `Stat` kartıyla başlar (günlük işçilik, kalan borç, net kalan).
 - **Liste:** Tek kart içinde ayırıcılı satırlar; satır basılınca `controlActive` zemin; silme uzun basma ile.

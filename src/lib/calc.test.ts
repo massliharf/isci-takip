@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMonthReport, monthlyHistory, openingBalances, puantajGrid, summarizeWorker } from './calc.ts';
+import { buildMonthReport, categoryTotals, monthlyHistory, openingBalances, overtimeRateFor, puantajGrid, summarizeWorker } from './calc.ts';
 import { csvContent, safeFileName } from './csv.ts';
 import { formatMoney, formatNumber, monthRange, parseMoney } from './format.ts';
 import type { Attendance, Payment } from './types.ts';
 
 const w = { id: 'w1', full_name: 'Ali' };
-const att = (date: string, status: Attendance['status'], wage = 1000): Attendance => ({
-  id: date, worker_id: 'w1', work_date: date, status, daily_wage: wage, note: null,
+const att = (date: string, status: Attendance['status'], wage = 1000, overtime_hours = 0, overtime_rate = 0): Attendance => ({
+  id: date, worker_id: 'w1', work_date: date, status, daily_wage: wage, note: null, overtime_hours, overtime_rate,
 });
 
 test('işçi alacağı: tam + yarım gün - avans', () => {
@@ -101,4 +101,25 @@ test('CSV: Excel için ; ayraç, BOM, ondalık virgül ve kaçış', () => {
   assert.equal(s.slice(1), 'Ad;Tutar\r\n"Ali; Veli";1250,5\r\n"""Usta""";');
   assert.equal(safeFileName('Mehmet Çelik – Ekim 2026'), 'Mehmet-Celik-Ekim-2026');
   assert.equal(safeFileName('İşçi Şükrü Ğ'), 'Isci-Sukru-G');
+});
+
+test('mesai: kazanca eklenir, saatlik ücret varsayılanı yevmiye/8 × 1,5', () => {
+  assert.equal(overtimeRateFor({ daily_wage: 1600, overtime_rate: null }), 300);
+  assert.equal(overtimeRateFor({ daily_wage: 1600, overtime_rate: 250 }), 250);
+  const s = summarizeWorker(w, [att('2026-10-01', 'full', 1600, 2, 300), att('2026-10-02', 'absent', 1600, 3, 300)], []);
+  assert.equal(s.overtimeHours, 5);
+  assert.equal(s.overtimeEarned, 1500);
+  assert.equal(s.earned, 3100);
+});
+
+test('kategori toplamları ve bütçe', () => {
+  const t = categoryTotals(
+    [{ category: 'malzeme', amount: 300 }, { category: 'yemek', amount: 50 }, { category: 'malzeme', amount: 200 }],
+    [{ category: 'malzeme', monthly_limit: 1000 }, { category: 'yakit', monthly_limit: 400 }],
+  );
+  assert.deepEqual(t.map((x) => [x.key, x.total, x.count, x.limit]), [
+    ['malzeme', 500, 2, 1000],
+    ['yemek', 50, 1, null],
+    ['yakit', 0, 0, 400],
+  ]);
 });

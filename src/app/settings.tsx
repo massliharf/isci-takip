@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { ExportMenu } from '../components/ExportMenu';
+import { LogoMark } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { Avatar, Button, Card, ErrorText, Field, FormStack, Hint, Screen, Section, Text } from '../components/ui';
 import { FAR_FUTURE, FAR_PAST, listAttendance, listExpenses, listIncomes, listPayments, listWorkers, updateProfile } from '../lib/api';
@@ -131,9 +132,12 @@ export default function SettingsScreen() {
           })
         }
       />
-      <Text variant="caption" tone="tertiary" align="center">
-        İşçi Takip · sürüm {Constants.expoConfig?.version ?? '1.0.0'}
-      </Text>
+      <View style={{ alignItems: 'center', gap: space.sm, paddingVertical: space.lg }}>
+        <LogoMark size={40} />
+        <Text variant="caption" tone="tertiary" align="center">
+          İşçi Takip · sürüm {Constants.expoConfig?.version ?? '1.0.0'}
+        </Text>
+      </View>
     </Screen>
   );
 }

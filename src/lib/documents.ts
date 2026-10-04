@@ -3,7 +3,7 @@
 import { STATUS_CODE, attendanceEarning, type GridRow, type MonthHistoryRow, type MonthReport, type WorkerSummary } from './calc';
 import type { CsvRow } from './csv';
 import { formatDate, formatMoney, formatNumber, fromISODate, MONTHS } from './format';
-import { PAYMENT_LABELS, STATUS_LABELS, type Attendance, type Expense, type Income, type Payment, type Worker } from './types';
+import { METHOD_LABELS, PAYMENT_LABELS, STATUS_LABELS, type Attendance, type Expense, type Income, type Payment, type Worker } from './types';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const DAY_SHORT = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
@@ -110,7 +110,8 @@ export function workerStatementHtml(
     .sort((a, b) => a.work_date.localeCompare(b.work_date))
     .map((a) => {
       const d = fromISODate(a.work_date);
-      return `<tr><td>${formatDate(a.work_date)} <span class="muted">${DAY_SHORT[d.getDay()]}</span></td><td class="l">${STATUS_LABELS[a.status]}</td><td>${formatMoney(Number(a.daily_wage))}</td><td>${formatMoney(attendanceEarning(a))}</td></tr>`;
+      const ot = Number(a.overtime_hours ?? 0);
+      return `<tr><td>${formatDate(a.work_date)} <span class="muted">${DAY_SHORT[d.getDay()]}</span></td><td class="l">${STATUS_LABELS[a.status]}${a.note ? ` <span class="muted">— ${esc(a.note)}</span>` : ''}</td><td>${formatMoney(Number(a.daily_wage))}</td><td>${ot ? `${formatNumber(ot)} sa` : ''}</td><td>${formatMoney(attendanceEarning(a))}</td></tr>`;
     })
     .join('');
   const pays = [...payments]
@@ -127,9 +128,9 @@ export function workerStatementHtml(
   </div>
   <h2>Puantaj — ${s.fullDays} tam, ${s.halfDays} yarım, ${s.leaveDays} izinli, ${s.absentDays} gelmedi</h2>
   <table>
-    <thead><tr><th>Tarih</th><th class="l">Durum</th><th>Yevmiye</th><th>Hak edilen</th></tr></thead>
-    <tbody>${days || '<tr><td class="l" colspan="4">Kayıt yok</td></tr>'}</tbody>
-    <tfoot><tr><td>Toplam</td><td class="l">${formatNumber(s.workedDays)} gün</td><td></td><td>${formatMoney(s.earned)}</td></tr></tfoot>
+    <thead><tr><th>Tarih</th><th class="l">Durum</th><th>Yevmiye</th><th>Mesai</th><th>Hak edilen</th></tr></thead>
+    <tbody>${days || '<tr><td class="l" colspan="5">Kayıt yok</td></tr>'}</tbody>
+    <tfoot><tr><td>Toplam</td><td class="l">${formatNumber(s.workedDays)} gün</td><td></td><td>${s.overtimeHours ? `${formatNumber(s.overtimeHours)} sa` : ''}</td><td>${formatMoney(s.earned)}</td></tr></tfoot>
   </table>
   <h2>Avans ve ödemeler</h2>
   <table>
@@ -183,10 +184,13 @@ export function workerHistoryCsv(name: string, rows: MonthHistoryRow[]): CsvRow[
 /** Tek işçinin tüm hareketleri (gün gün ve ödeme ödeme) */
 export function workerLedgerCsv(name: string, attendance: Attendance[], payments: Payment[]): CsvRow[] {
   const items = [
-    ...attendance.map((a) => ({ date: a.work_date, row: [formatDate(a.work_date), 'Puantaj', STATUS_LABELS[a.status], Number(a.daily_wage), attendanceEarning(a), null] as CsvRow })),
-    ...payments.map((p) => ({ date: p.pay_date, row: [formatDate(p.pay_date), PAYMENT_LABELS[p.kind], p.note ?? '', null, null, Number(p.amount)] as CsvRow })),
+    ...attendance.map((a) => ({
+      date: a.work_date,
+      row: [formatDate(a.work_date), 'Puantaj', `${STATUS_LABELS[a.status]}${a.note ? ` — ${a.note}` : ''}`, Number(a.daily_wage), Number(a.overtime_hours ?? 0) || null, attendanceEarning(a), null] as CsvRow,
+    })),
+    ...payments.map((p) => ({ date: p.pay_date, row: [formatDate(p.pay_date), PAYMENT_LABELS[p.kind], p.note ?? '', null, null, null, Number(p.amount)] as CsvRow })),
   ].sort((a, b) => a.date.localeCompare(b.date));
-  return [[name], ['Tarih', 'Tür', 'Açıklama', 'Yevmiye', 'Hak edilen', 'Verilen'], ...items.map((i) => i.row)];
+  return [[name], ['Tarih', 'Tür', 'Açıklama', 'Yevmiye', 'Mesai (saat)', 'Hak edilen', 'Verilen'], ...items.map((i) => i.row)];
 }
 
 // ───────── Puantaj cetveli ─────────
@@ -200,15 +204,15 @@ export function puantajGridHtml(title: string, business: string, grid: GridRow[]
     .map(
       (r) => `<tr><td>${esc(r.name)}</td>${r.cells
         .map((c) => `<td style="background:${c ? STATUS_BG[c] : 'transparent'}">${c ? STATUS_CODE[c] : ''}</td>`)
-        .join('')}<td><b>${formatNumber(r.workedDays)}</b></td><td>${formatMoney(r.earned)}</td></tr>`,
+        .join('')}<td><b>${formatNumber(r.workedDays)}</b></td><td>${r.overtimeHours ? formatNumber(r.overtimeHours) : ''}</td><td>${formatMoney(r.earned)}</td></tr>`,
     )
     .join('');
   const total = grid.reduce((t, r) => t + r.earned, 0);
   const body = `
   <table class="grid">
-    <thead><tr><th>İşçi</th>${dayHead}<th>Gün</th><th>Tutar</th></tr></thead>
-    <tbody>${rows || `<tr><td colspan="${daysInMonth + 3}">Kayıt yok</td></tr>`}</tbody>
-    <tfoot><tr><td>Toplam</td><td colspan="${daysInMonth + 1}"></td><td>${formatMoney(total)}</td></tr></tfoot>
+    <thead><tr><th>İşçi</th>${dayHead}<th>Gün</th><th>Mesai</th><th>Tutar</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="${daysInMonth + 4}">Kayıt yok</td></tr>`}</tbody>
+    <tfoot><tr><td>Toplam</td><td colspan="${daysInMonth + 2}"></td><td>${formatMoney(total)}</td></tr></tfoot>
   </table>
   <div class="legend">T: Tam gün · Y: Yarım gün · İ: İzinli · X: Gelmedi</div>`;
   return page(title, business, body, true);
@@ -216,8 +220,8 @@ export function puantajGridHtml(title: string, business: string, grid: GridRow[]
 
 export function puantajGridCsv(grid: GridRow[], daysInMonth: number): CsvRow[] {
   return [
-    ['İşçi', 'Yevmiye', ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1)), 'Çalışılan gün', 'Hak edilen'],
-    ...grid.map((r) => [r.name, r.dailyWage, ...r.cells.map((c) => (c ? STATUS_CODE[c] : '')), r.workedDays, r.earned]),
+    ['İşçi', 'Yevmiye', ...Array.from({ length: daysInMonth }, (_, i) => String(i + 1)), 'Çalışılan gün', 'Mesai (saat)', 'Hak edilen'],
+    ...grid.map((r) => [r.name, r.dailyWage, ...r.cells.map((c) => (c ? STATUS_CODE[c] : '')), r.workedDays, r.overtimeHours, r.earned]),
     [],
     ['T: Tam gün', 'Y: Yarım gün', 'İ: İzinli', 'X: Gelmedi'],
   ];
@@ -225,15 +229,52 @@ export function puantajGridCsv(grid: GridRow[], daysInMonth: number): CsvRow[] {
 
 // ───────── Kasa ─────────
 
-export function cashCsv(incomes: Income[], payments: Payment[], expenses: Expense[], workerName: (id: string) => string): CsvRow[] {
+export function cashCsv(
+  incomes: Income[],
+  payments: Payment[],
+  expenses: Expense[],
+  workerName: (id: string) => string,
+  label: { income: (k: string) => string; expense: (k: string) => string },
+): CsvRow[] {
   const items = [
-    ...incomes.map((i) => ({ date: i.income_date, row: [formatDate(i.income_date), 'Gelir', i.description ?? '', Number(i.amount)] as CsvRow })),
+    ...incomes.map((i) => ({
+      date: i.income_date,
+      row: [formatDate(i.income_date), 'Gelir', label.income(i.category), i.description ?? '', i.site ?? '', METHOD_LABELS[i.method] ?? '', Number(i.amount)] as CsvRow,
+    })),
     ...payments.map((p) => ({
       date: p.pay_date,
-      row: [formatDate(p.pay_date), PAYMENT_LABELS[p.kind], `${workerName(p.worker_id)}${p.note ? ` — ${p.note}` : ''}`, -Number(p.amount)] as CsvRow,
+      row: [formatDate(p.pay_date), 'İşçi ödemesi', PAYMENT_LABELS[p.kind], `${workerName(p.worker_id)}${p.note ? ` — ${p.note}` : ''}`, '', METHOD_LABELS[p.method] ?? '', -Number(p.amount)] as CsvRow,
     })),
-    ...expenses.map((e) => ({ date: e.expense_date, row: [formatDate(e.expense_date), 'Gider', e.description ?? '', -Number(e.amount)] as CsvRow })),
+    ...expenses.map((e) => ({
+      date: e.expense_date,
+      row: [formatDate(e.expense_date), 'Gider', label.expense(e.category), e.description ?? '', e.site ?? '', METHOD_LABELS[e.method] ?? '', -Number(e.amount)] as CsvRow,
+    })),
   ].sort((a, b) => a.date.localeCompare(b.date));
-  const total = items.reduce((t, i) => t + Number(i.row[3]), 0);
-  return [['Tarih', 'Tür', 'Açıklama', 'Tutar'], ...items.map((i) => i.row), [], ['', '', 'Net', total]];
+  const total = items.reduce((t, i) => t + Number(i.row[6]), 0);
+  return [['Tarih', 'Tür', 'Kategori', 'Açıklama', 'Şantiye', 'Ödeme şekli', 'Tutar'], ...items.map((i) => i.row), [], ['', '', '', '', '', 'Net', total]];
+}
+
+/** Muhasebeci için kategori özeti */
+export function categorySummaryCsv(
+  title: string,
+  incomes: { label: string; total: number }[],
+  expenses: { label: string; total: number; limit: number | null }[],
+  labor: number,
+): CsvRow[] {
+  const inc = incomes.reduce((t, x) => t + x.total, 0);
+  const exp = expenses.reduce((t, x) => t + x.total, 0);
+  return [
+    [title],
+    [],
+    ['GELİRLER', 'Tutar'],
+    ...incomes.map((x) => [x.label, x.total]),
+    ['Toplam gelir', inc],
+    [],
+    ['GİDERLER', 'Tutar', 'Bütçe', 'Kalan bütçe'],
+    ...expenses.map((x) => [x.label, x.total, x.limit, x.limit != null ? x.limit - x.total : null]),
+    ['İşçilik (işçilere ödenen)', labor],
+    ['Toplam gider', exp + labor],
+    [],
+    ['NET', inc - exp - labor],
+  ];
 }

@@ -1,14 +1,22 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import * as Clipboard from 'expo-clipboard';
 import { ExportMenu } from '../../components/ExportMenu';
+import { Appear, PressableScale } from '../../components/motion';
+import { OvertimeSheet } from '../../components/OvertimeSheet';
+import { formatIban, roleTone } from '../../components/WorkerForm';
 import { useToast } from '../../components/Toast';
 import {
   ActionMenu,
   Avatar,
-  Button,
   Card,
   Chip,
+  Divider,
+  HeroCard,
+  HeroStats,
+  Row,
   currentYearMonth,
   EmptyState,
   ErrorText,
@@ -25,7 +33,6 @@ import {
   Screen,
   Section,
   Segmented,
-  Stat,
   Text,
   type YearMonth,
 } from '../../components/ui';
@@ -39,17 +46,18 @@ import {
   listAttendance,
   listPayments,
   setAttendance,
+  updateAttendance,
   updateAttendanceStatus,
 } from '../../lib/api';
 import { useBusinessName } from '../../lib/auth';
-import { monthlyHistory, openingBalances, summarizeWorker } from '../../lib/calc';
+import { monthlyHistory, openingBalances, overtimeRateFor, summarizeWorker } from '../../lib/calc';
 import { safeFileName } from '../../lib/csv';
 import { confirmAction, errorMessage } from '../../lib/dialog';
 import { monthLabel, workerHistoryCsv, workerHistoryHtml, workerLedgerCsv, workerStatementHtml } from '../../lib/documents';
 import { exportCsv, exportPdf } from '../../lib/export';
 import { formatDate, formatDateLong, formatMoney, formatNumber, fromISODate, monthRange, toISODate } from '../../lib/format';
 import { tapFeedback } from '../../lib/haptics';
-import { PAYMENT_LABELS, STATUS_LABELS, type AttendanceStatus, type Payment } from '../../lib/types';
+import { PAYMENT_LABELS, ROLE_LABELS, STATUS_LABELS, type Attendance, type AttendanceStatus, type Payment } from '../../lib/types';
 import { useFocusData } from '../../lib/useAsync';
 import { categoryTone, palette, radius, space, statusTone } from '../../theme/tokens';
 
@@ -69,6 +77,7 @@ export default function WorkerDetail() {
   const [view, setView] = useState<View_>('month');
   const [ym, setYm] = useState<YearMonth>(currentYearMonth());
   const [dayMenu, setDayMenu] = useState<string | null>(null);
+  const [overtimeDay, setOvertimeDay] = useState<Attendance | null>(null);
   const business = useBusinessName();
   const toast = useToast();
   const { start, end } = monthRange(ym.year, ym.month);
@@ -154,47 +163,97 @@ export default function WorkerDetail() {
       />
       <ErrorText>{month.error}</ErrorText>
 
-      {/* Kimlik + bakiye: ekranın en önemli bilgisi */}
-      <Card style={{ gap: space.lg }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
-          <Avatar name={worker.full_name} size={48} muted={!worker.active} />
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text variant="heading" numberOfLines={1}>
-              {worker.full_name}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
-              <Chip label={`${formatMoney(worker.daily_wage)} / gün`} />
-              {!worker.active && <Chip label="Pasif" />}
-            </View>
-          </View>
-          {worker.phone ? (
-            <View style={{ flexDirection: 'row', gap: space.xs }}>
-              <IconButton icon="phone" onPress={() => Linking.openURL(`tel:${worker.phone}`)} accessibilityLabel="Ara" />
-              <IconButton icon="message-circle" onPress={() => Linking.openURL(`https://wa.me/${waNumber(worker.phone!)}`)} accessibilityLabel="WhatsApp" />
-            </View>
-          ) : null}
-        </View>
-        <Stat
+      {/* Bakiye: ekranın en önemli bilgisi */}
+      <Appear>
+        <HeroCard
           label={balance < 0 ? 'Fazla ödenen (işçinin borcu)' : 'Toplam alacağı'}
-          value={formatMoney(Math.abs(balance))}
-          tone={moneyTone(balance)}
-          caption={`Hak edilen ${formatMoney(total?.earned ?? 0)} − verilen ${formatMoney(total?.paid ?? 0)}`}
-        />
-        <View style={{ flexDirection: 'row', gap: space.sm }}>
-          <View style={{ flex: 1 }}>
-            <Button title="Avans ver" icon="arrow-up-right" onPress={() => router.push({ pathname: '/payment/new', params: { workerId: id, kind: 'advance' } })} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button
-              title="Hesap kapat"
-              icon="check-circle"
-              variant="secondary"
+          amount={Math.abs(balance)}
+          caption={`${worker.full_name} · ${ROLE_LABELS[worker.role] ?? 'İşçi'}`}
+          right={<Avatar name={worker.full_name} size={44} muted={!worker.active} />}
+        >
+          <HeroStats
+            items={[
+              { label: 'Hak edilen', value: formatMoney(total?.earned ?? 0) },
+              { label: 'Verilen', value: formatMoney(total?.paid ?? 0) },
+              { label: 'Çalıştığı gün', value: formatNumber(total?.worked_days ?? 0) },
+            ]}
+          />
+          <View style={{ flexDirection: 'row', gap: space.sm }}>
+            <PressableScale
+              onPress={() => router.push({ pathname: '/payment/new', params: { workerId: id, kind: 'advance' } })}
+              style={[heroBtn, { flex: 1, backgroundColor: palette.heroText }]}
+            >
+              <Feather name="arrow-up-right" size={16} color={palette.textPrimary} />
+              <Text variant="ui" weight="semibold">
+                Avans ver
+              </Text>
+            </PressableScale>
+            <PressableScale
               disabled={balance <= 0}
               onPress={() => router.push({ pathname: '/payment/new', params: { workerId: id, kind: 'payment', suggested: String(Math.max(balance, 0)) } })}
-            />
+              style={[heroBtn, { flex: 1, backgroundColor: palette.heroLine, opacity: balance <= 0 ? 0.5 : 1 }]}
+            >
+              <Feather name="check-circle" size={16} color={palette.heroText} />
+              <Text variant="ui" weight="semibold" color={palette.heroText}>
+                Hesap kapat
+              </Text>
+            </PressableScale>
           </View>
-        </View>
-      </Card>
+        </HeroCard>
+      </Appear>
+
+      {/* Profil */}
+      <Appear index={1}>
+        <Card padded={false}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg }}>
+            <View style={{ flex: 1, gap: 6 }}>
+              <Text variant="heading" numberOfLines={1}>
+                {worker.full_name}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: space.xs, flexWrap: 'wrap' }}>
+                <Chip label={ROLE_LABELS[worker.role] ?? 'İşçi'} tone={roleTone(worker.role ?? 'diger')} />
+                <Chip label={`${formatMoney(worker.daily_wage)} / gün`} />
+                {!worker.active && <Chip label="Pasif" />}
+              </View>
+            </View>
+            {worker.phone ? (
+              <View style={{ flexDirection: 'row', gap: space.xs }}>
+                <IconButton icon="phone" onPress={() => Linking.openURL(`tel:${worker.phone}`)} accessibilityLabel="Ara" />
+                <IconButton icon="message-circle" onPress={() => Linking.openURL(`https://wa.me/${waNumber(worker.phone!)}`)} accessibilityLabel="WhatsApp" />
+              </View>
+            ) : null}
+          </View>
+          <Divider inset={space.lg} />
+          <View style={{ paddingHorizontal: space.lg, paddingVertical: space.sm }}>
+            <Row label="İşe başlama" value={`${formatDate(worker.start_date)} · ${tenure(worker.start_date)}`} />
+            <Row label="Mesai ücreti" value={`${formatMoney(overtimeRateFor(worker))} / saat`} hint={worker.overtime_rate ? undefined : 'Yevmiye / 8 × 1,5'} />
+            {worker.phone ? <Row label="Telefon" value={worker.phone} /> : null}
+            {worker.emergency_contact ? <Row label="Acil durumda" value={worker.emergency_contact} /> : null}
+          </View>
+          {worker.iban ? (
+            <>
+              <Divider inset={space.lg} />
+              <ListRow
+                leading={<IconBox icon="credit-card" {...categoryTone.payment} />}
+                title={formatIban(worker.iban)}
+                subtitle="IBAN · kopyalamak için dokun"
+                onPress={async () => {
+                  await Clipboard.setStringAsync(worker.iban!);
+                  toast('IBAN kopyalandı');
+                }}
+              />
+            </>
+          ) : null}
+          {worker.notes ? (
+            <>
+              <Divider inset={space.lg} />
+              <Text variant="caption" tone="secondary" style={{ padding: space.lg }}>
+                {worker.notes}
+              </Text>
+            </>
+          ) : null}
+        </Card>
+      </Appear>
 
       <Segmented<View_>
         options={[
@@ -210,13 +269,26 @@ export default function WorkerDetail() {
           <MonthStepper value={ym} onChange={setYm} />
           {month.loading && <Loading />}
           <KpiRow>
-            <Kpi label="Devreden" value={formatMoney(summary.opening)} hint="Önceki aylardan" />
-            <Kpi label="Hak edilen" value={formatMoney(summary.earned)} hint={`${formatNumber(summary.workedDays)} gün`} />
+            <Kpi icon="corner-down-right" accent={categoryTone.worker} label="Devreden" value={formatMoney(summary.opening)} hint="Önceki aylardan" />
+            <Kpi icon="calendar" accent={categoryTone.income} label="Hak edilen" value={formatMoney(summary.earned)} hint={`${formatNumber(summary.workedDays)} gün`} />
           </KpiRow>
           <KpiRow>
-            <Kpi label="Verilen" value={formatMoney(summary.paid)} hint={`Avans ${formatMoney(summary.advances)}`} />
-            <Kpi label="Ay sonu bakiye" value={formatMoney(summary.closing)} tone={moneyTone(summary.closing)} hint={summary.closing < 0 ? 'fazla ödendi' : 'alacağı'} />
+            <Kpi icon="clock" accent={OT_TONE} label="Mesai" value={`${formatNumber(summary.overtimeHours)} saat`} hint={formatMoney(summary.overtimeEarned)} />
+            <Kpi icon="arrow-up-right" accent={categoryTone.payment} label="Verilen" value={formatMoney(summary.paid)} hint={`Avans ${formatMoney(summary.advances)}`} />
           </KpiRow>
+          <Card style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+            <View style={{ flex: 1 }}>
+              <Text variant="overline" tone="secondary">
+                Ay sonu bakiye
+              </Text>
+              <Text variant="caption" tone="tertiary">
+                Devreden + hak edilen − verilen
+              </Text>
+            </View>
+            <Text variant="display" tone={moneyTone(summary.closing)} numeric>
+              {formatMoney(summary.closing)}
+            </Text>
+          </Card>
 
           <Section label="Puantaj">
             <Card style={{ gap: space.md }}>
@@ -254,6 +326,7 @@ export default function WorkerDetail() {
                         <Text variant="caption" weight={tone ? 'semibold' : 'regular'} color={tone ? tone.ink : palette.textTertiary}>
                           {i + 1}
                         </Text>
+                        {a && a.overtime_hours > 0 ? <View style={styles.otDot} /> : null}
                       </Pressable>
                     </View>
                   );
@@ -388,12 +461,54 @@ export default function WorkerDetail() {
             onPress: () => dayMenu && setDay(dayMenu, s),
           })),
           ...(dayMenu && byDay.has(dayMenu)
+            ? [
+                {
+                  label: 'Mesai / not',
+                  subtitle: byDay.get(dayMenu)!.overtime_hours > 0 ? `${formatNumber(byDay.get(dayMenu)!.overtime_hours)} saat` : 'Saat ve not ekle',
+                  icon: 'clock' as const,
+                  ...OT_TONE,
+                  onPress: () => setOvertimeDay(byDay.get(dayMenu)!),
+                },
+              ]
+            : []),
+          ...(dayMenu && byDay.has(dayMenu)
             ? [{ label: 'Kaydı sil', icon: 'trash-2' as const, color: palette.negative, soft: palette.negativeSoft, onPress: () => setDay(dayMenu, null) }]
             : []),
         ]}
       />
+      <OvertimeSheet
+        record={overtimeDay}
+        workerName={worker.full_name}
+        onClose={() => setOvertimeDay(null)}
+        onSave={async (hours, note) => {
+          if (!overtimeDay) return;
+          try {
+            await updateAttendance(overtimeDay.id, { overtime_hours: hours, note });
+            toast('Mesai kaydedildi');
+            setOvertimeDay(null);
+            reloadAll();
+          } catch (e) {
+            toast(`Kaydedilemedi: ${errorMessage(e)}`, 'error');
+          }
+        }}
+      />
     </Screen>
   );
+}
+
+const OT_TONE = { color: '#C25A12', soft: 'rgba(255,138,61,0.14)' };
+const heroBtn = { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, height: 44, borderRadius: radius.sm } as const;
+
+/** "2024-03-01" → "2 yıl 7 ay" */
+function tenure(startIso: string): string {
+  const s = fromISODate(startIso);
+  const n = new Date();
+  let months = (n.getFullYear() - s.getFullYear()) * 12 + (n.getMonth() - s.getMonth());
+  if (n.getDate() < s.getDate()) months--;
+  if (months < 1) return 'yeni';
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return [y ? `${y} yıl` : '', m ? `${m} ay` : ''].filter(Boolean).join(' ');
 }
 
 const styles = StyleSheet.create({
@@ -401,4 +516,5 @@ const styles = StyleSheet.create({
   calendarHead: { width: `${100 / 7}%`, alignItems: 'center', paddingBottom: space.xs },
   calendarCell: { width: `${100 / 7}%`, aspectRatio: 1, padding: 2 },
   calendarDay: { flex: 1, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  otDot: { position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF8A3D' },
 });

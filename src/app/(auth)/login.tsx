@@ -2,10 +2,12 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, ErrorText, Field, FormStack, IconBox, Screen, Text } from '../../components/ui';
+import { LogoMark } from '../../components/Logo';
+import { Appear } from '../../components/motion';
+import { Button, Card, Chip, ErrorText, Field, FormStack, Screen, Text } from '../../components/ui';
 import { showMessage } from '../../lib/dialog';
 import { supabase } from '../../lib/supabase';
-import { categoryTone, palette, space } from '../../theme/tokens';
+import { palette, space, statusTone } from '../../theme/tokens';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -31,15 +33,22 @@ export default function Login() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.bgApp }}>
       <Screen>
-        <View style={{ alignItems: 'center', gap: space.md, marginTop: space.xxl * 2, marginBottom: space.lg }}>
-          <IconBox icon="check-square" {...categoryTone.worker} size={56} />
-          <Text variant="display" align="center">
-            İşçi Takip
-          </Text>
-          <Text variant="body" tone="secondary" align="center">
-            Puantaj, yevmiye ve alacak-verecek tek yerde
-          </Text>
-        </View>
+        <Appear>
+          <View style={{ alignItems: 'center', gap: space.md, marginTop: space.xxl * 2, marginBottom: space.lg }}>
+            <LogoMark size={72} />
+            <Text variant="hero" align="center">
+              İşçi Takip
+            </Text>
+            <Text variant="body" tone="secondary" align="center">
+              Puantaj, yevmiye, mesai ve kasa — şantiyede tek uygulama
+            </Text>
+            <View style={{ flexDirection: 'row', gap: space.xs, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <Chip label="Puantaj" tone={statusTone.full} />
+              <Chip label="Alacak-verecek" tone={statusTone.half} />
+              <Chip label="Gelir-gider" tone={statusTone.leave} />
+            </View>
+          </View>
+        </Appear>
         <Card>
           <FormStack>
             <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />

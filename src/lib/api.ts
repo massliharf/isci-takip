@@ -1,8 +1,17 @@
 import { supabase } from './supabase';
-import type { Attendance, AttendanceStatus, Expense, Income, Payment, PaymentKind, Worker } from './types';
+import type { Attendance, AttendanceStatus, Budget, Expense, Income, PayMethod, Payment, PaymentKind, Worker } from './types';
+import { overtimeRateFor } from './calc';
+
+const MIGRATION_HINT =
+  'Veritabanı güncel değil. Supabase → SQL Editor\'de supabase/migrations/0002_advanced.sql dosyasını çalıştırın.';
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T {
-  if (res.error) throw new Error(res.error.message);
+  if (res.error) {
+    const m = res.error.message;
+    // Yeni sütunlar/tablolar henüz oluşturulmadıysa anlaşılır bir mesaj ver
+    if (/column .* does not exist|could not find the .* (column|table)|relation .* does not exist|schema cache/i.test(m)) throw new Error(MIGRATION_HINT);
+    throw new Error(m);
+  }
   return res.data as T;
 }
 
@@ -43,14 +52,19 @@ export async function updateProfile(p: Profile): Promise<void> {
 export async function listWorkers(onlyActive = false): Promise<Worker[]> {
   let q = supabase.from('workers').select('*').order('full_name');
   if (onlyActive) q = q.eq('active', true);
-  return check(await q).map((w: Worker) => num(w, 'daily_wage'));
+  return check(await q).map(toWorker);
 }
+
+const toWorker = (w: Worker): Worker => ({ ...num(w, 'daily_wage'), overtime_rate: w.overtime_rate == null ? null : Number(w.overtime_rate) });
 
 export async function getWorker(id: string): Promise<Worker> {
-  return num(check(await supabase.from('workers').select('*').eq('id', id).single()) as Worker, 'daily_wage');
+  return toWorker(check(await supabase.from('workers').select('*').eq('id', id).single()) as Worker);
 }
 
-export type WorkerInput = Pick<Worker, 'full_name' | 'phone' | 'daily_wage' | 'start_date' | 'active' | 'notes'>;
+export type WorkerInput = Pick<
+  Worker,
+  'full_name' | 'phone' | 'daily_wage' | 'start_date' | 'active' | 'notes' | 'role' | 'iban' | 'overtime_rate' | 'emergency_contact'
+>;
 
 export async function createWorker(input: WorkerInput): Promise<Worker> {
   return check(await supabase.from('workers').insert(input).select().single());
@@ -95,23 +109,45 @@ export async function listAttendance(start: string, end: string, workerId?: stri
     if (workerId) q = q.eq('worker_id', workerId);
     return q.range(from, to);
   });
-  return rows.map((a) => num(a, 'daily_wage'));
+  return rows.map(toAttendance);
 }
 
-export async function setAttendance(worker: Pick<Worker, 'id' | 'daily_wage'>, date: string, status: AttendanceStatus): Promise<Attendance> {
+const toAttendance = (a: Attendance): Attendance => ({
+  ...num(a, 'daily_wage'),
+  overtime_hours: Number(a.overtime_hours ?? 0),
+  overtime_rate: Number(a.overtime_rate ?? 0),
+});
+
+/** Yeni gün kaydı: o günün yevmiyesi ve mesai ücreti kayda kopyalanır */
+export async function setAttendance(
+  worker: Pick<Worker, 'id' | 'daily_wage' | 'overtime_rate'>,
+  date: string,
+  status: AttendanceStatus,
+  extra: { overtime_hours?: number; note?: string | null } = {},
+): Promise<Attendance> {
   const row = check(
     await supabase
       .from('attendance')
-      .upsert({ worker_id: worker.id, work_date: date, status, daily_wage: worker.daily_wage }, { onConflict: 'worker_id,work_date' })
+      .upsert(
+        { worker_id: worker.id, work_date: date, status, daily_wage: worker.daily_wage, overtime_rate: overtimeRateFor(worker), ...extra },
+        { onConflict: 'worker_id,work_date' },
+      )
       .select()
       .single(),
   ) as Attendance;
-  return num(row, 'daily_wage');
+  return toAttendance(row);
 }
 
-/** Yevmiyesi kayıtlı bir günün durumunu değiştirir (geçmiş günün yevmiyesi korunur) */
+/** Kayıtlı bir günü günceller (o günün yevmiyesi korunur) */
+export async function updateAttendance(
+  id: string,
+  patch: Partial<Pick<Attendance, 'status' | 'overtime_hours' | 'overtime_rate' | 'note'>>,
+): Promise<Attendance> {
+  return toAttendance(check(await supabase.from('attendance').update(patch).eq('id', id).select().single()) as Attendance);
+}
+
 export async function updateAttendanceStatus(id: string, status: AttendanceStatus): Promise<void> {
-  check(await supabase.from('attendance').update({ status }).eq('id', id));
+  await updateAttendance(id, { status });
 }
 
 export async function clearAttendance(workerId: string, date: string): Promise<void> {
@@ -129,7 +165,14 @@ export async function listPayments(start = FAR_PAST, end = FAR_FUTURE, workerId?
   return rows.map((p) => num(p, 'amount'));
 }
 
-export async function createPayment(input: { worker_id: string; pay_date: string; amount: number; kind: PaymentKind; note: string | null }): Promise<void> {
+export async function createPayment(input: {
+  worker_id: string;
+  pay_date: string;
+  amount: number;
+  kind: PaymentKind;
+  note: string | null;
+  method: PayMethod;
+}): Promise<void> {
   check(await supabase.from('payments').insert(input));
 }
 
@@ -146,7 +189,9 @@ export async function listIncomes(start = FAR_PAST, end = FAR_FUTURE): Promise<I
   return rows.map((i) => num(i, 'amount'));
 }
 
-export async function createIncome(input: { income_date: string; amount: number; description: string | null }): Promise<void> {
+export type MoneyInput = { amount: number; description: string | null; category: string; method: PayMethod; site: string | null };
+
+export async function createIncome(input: MoneyInput & { income_date: string }): Promise<void> {
   check(await supabase.from('incomes').insert(input));
 }
 
@@ -163,10 +208,31 @@ export async function listExpenses(start = FAR_PAST, end = FAR_FUTURE): Promise<
   return rows.map((e) => num(e, 'amount'));
 }
 
-export async function createExpense(input: { expense_date: string; amount: number; description: string | null }): Promise<void> {
+export async function createExpense(input: MoneyInput & { expense_date: string }): Promise<void> {
   check(await supabase.from('expenses').insert(input));
 }
 
 export async function deleteExpense(id: string): Promise<void> {
   check(await supabase.from('expenses').delete().eq('id', id));
+}
+
+// ───────── Bütçeler ─────────
+
+export async function listBudgets(): Promise<Budget[]> {
+  return check(await supabase.from('budgets').select('category, monthly_limit')).map((b: Budget) => num(b, 'monthly_limit'));
+}
+
+export async function setBudget(category: string, monthly_limit: number | null): Promise<void> {
+  if (monthly_limit === null || monthly_limit <= 0) check(await supabase.from('budgets').delete().eq('category', category));
+  else check(await supabase.from('budgets').upsert({ category, monthly_limit }, { onConflict: 'owner_id,category' }));
+}
+
+/** Daha önce girilmiş şantiye adları (öneri olarak) */
+export async function listSites(): Promise<string[]> {
+  const [a, b] = await Promise.all([
+    supabase.from('expenses').select('site').not('site', 'is', null).limit(500),
+    supabase.from('incomes').select('site').not('site', 'is', null).limit(500),
+  ]);
+  const rows = [...(check(a) as { site: string }[]), ...(check(b) as { site: string }[])];
+  return [...new Set(rows.map((r) => r.site.trim()).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'tr'));
 }

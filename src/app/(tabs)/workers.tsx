@@ -2,12 +2,13 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Avatar,
+  BrandButton,
   Button,
   Card,
   EmptyState,
   ErrorText,
-  Kpi,
-  KpiRow,
+  HeroCard,
+  HeroStats,
   ListCard,
   ListRow,
   Loading,
@@ -16,13 +17,13 @@ import {
   SearchField,
   Section,
   Segmented,
-  Stat,
   Text,
 } from '../../components/ui';
+import { Appear } from '../../components/motion';
+import { ROLE_LABELS } from '../../lib/types';
 import { listWorkerBalances, listWorkers } from '../../lib/api';
 import { formatMoney, formatNumber } from '../../lib/format';
 import { useFocusData } from '../../lib/useAsync';
-import { space } from '../../theme/tokens';
 
 type Filter = 'active' | 'debt' | 'all';
 type Sort = 'name' | 'balance';
@@ -40,6 +41,7 @@ export default function WorkersScreen() {
   const owed = data?.reduce((t, x) => t + Math.max(0, x.balance?.balance ?? 0), 0) ?? 0;
   const overpaid = data?.reduce((t, x) => t + Math.min(0, x.balance?.balance ?? 0), 0) ?? 0;
   const activeCount = data?.filter((x) => x.worker.active).length ?? 0;
+  const dailyPayroll = data?.filter((x) => x.worker.active).reduce((t, x) => t + x.worker.daily_wage, 0) ?? 0;
 
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr');
@@ -66,13 +68,17 @@ export default function WorkersScreen() {
       ) : (
         data && (
           <>
-            <Card>
-              <Stat label="İşçilere ödenecek" value={formatMoney(owed)} caption="Hak edilen yevmiyeler − verilen avans ve ödemeler" />
-            </Card>
-            <KpiRow>
-              <Kpi label="Aktif işçi" value={String(activeCount)} hint={`${data.length - activeCount} pasif`} />
-              <Kpi label="Fazla ödenen" value={formatMoney(Math.abs(overpaid))} tone={overpaid < 0 ? 'negative' : 'primary'} hint="İşçilerin borcu" />
-            </KpiRow>
+            <Appear>
+              <HeroCard label="İşçilere ödenecek" amount={owed} caption="Hak edilen yevmiye ve mesai − verilen avans ve ödemeler">
+                <HeroStats
+                  items={[
+                    { label: 'Aktif işçi', value: `${activeCount} kişi` },
+                    { label: 'Günlük yevmiye', value: formatMoney(dailyPayroll) },
+                    { label: 'Fazla ödenen', value: formatMoney(Math.abs(overpaid)), tone: overpaid < 0 ? 'negative' : undefined },
+                  ]}
+                />
+              </HeroCard>
+            </Appear>
 
             <Section
               label={`${visible.length} işçi`}
@@ -107,7 +113,7 @@ export default function WorkersScreen() {
                         key={worker.id}
                         leading={<Avatar name={worker.full_name} muted={!worker.active} />}
                         title={worker.full_name}
-                        subtitle={`${formatMoney(worker.daily_wage)} / gün · ${formatNumber(balance?.worked_days ?? 0)} gün${worker.active ? '' : ' · pasif'}`}
+                        subtitle={`${ROLE_LABELS[worker.role] ?? 'İşçi'} · ${formatMoney(worker.daily_wage)}/gün · ${formatNumber(balance?.worked_days ?? 0)} gün${worker.active ? '' : ' · pasif'}`}
                         value={formatMoney(Math.abs(b))}
                         valueTone={moneyTone(b)}
                         valueSub={b < 0 ? 'fazla ödendi' : b > 0 ? 'alacağı' : 'hesap kapalı'}
@@ -123,9 +129,7 @@ export default function WorkersScreen() {
           </>
         )
       )}
-      <Text variant="caption" tone="tertiary" align="center" style={{ marginTop: space.sm }}>
-        Yeni işçi için sağ üstteki + butonunu kullan.
-      </Text>
+      {data && data.length > 0 && <BrandButton title="Yeni işçi ekle" onPress={() => router.push('/worker/new')} />}
     </Screen>
   );
 }

@@ -1,5 +1,7 @@
 export type AttendanceStatus = 'full' | 'half' | 'absent' | 'leave';
 export type PaymentKind = 'advance' | 'payment';
+export type WorkerRole = 'usta' | 'kalfa' | 'duz' | 'diger';
+export type PayMethod = 'nakit' | 'banka' | 'kart';
 
 export interface Worker {
   id: string;
@@ -9,6 +11,10 @@ export interface Worker {
   start_date: string;
   active: boolean;
   notes: string | null;
+  role: WorkerRole;
+  iban: string | null;
+  overtime_rate: number | null; // saatlik; boşsa yevmiye/8 × 1,5
+  emergency_contact: string | null;
 }
 
 export interface Attendance {
@@ -18,6 +24,8 @@ export interface Attendance {
   status: AttendanceStatus;
   daily_wage: number;
   note: string | null;
+  overtime_hours: number;
+  overtime_rate: number;
 }
 
 export interface Payment {
@@ -27,6 +35,7 @@ export interface Payment {
   amount: number;
   kind: PaymentKind;
   note: string | null;
+  method: PayMethod;
 }
 
 export interface Income {
@@ -34,6 +43,9 @@ export interface Income {
   income_date: string;
   amount: number;
   description: string | null;
+  category: string;
+  method: PayMethod;
+  site: string | null;
 }
 
 export interface Expense {
@@ -41,6 +53,14 @@ export interface Expense {
   expense_date: string;
   amount: number;
   description: string | null;
+  category: string;
+  method: PayMethod;
+  site: string | null;
+}
+
+export interface Budget {
+  category: string;
+  monthly_limit: number;
 }
 
 export const STATUS_LABELS: Record<AttendanceStatus, string> = {
@@ -53,4 +73,17 @@ export const STATUS_LABELS: Record<AttendanceStatus, string> = {
 export const PAYMENT_LABELS: Record<PaymentKind, string> = {
   advance: 'Avans',
   payment: 'Ödeme',
+};
+
+export const ROLE_LABELS: Record<WorkerRole, string> = {
+  usta: 'Usta',
+  kalfa: 'Kalfa',
+  duz: 'Düz işçi',
+  diger: 'Diğer',
+};
+
+export const METHOD_LABELS: Record<PayMethod, string> = {
+  nakit: 'Nakit',
+  banka: 'Banka',
+  kart: 'Kart',
 };

@@ -1,39 +1,45 @@
 import { useMemo, useState } from 'react';
+import { View } from 'react-native';
 import { ExportMenu } from '../../components/ExportMenu';
+import { AnimatedBar, Appear, PressableScale } from '../../components/motion';
 import { useToast } from '../../components/Toast';
 import {
+  Button,
   Card,
+  ChoiceChips,
   currentYearMonth,
-  Divider,
   EmptyState,
   ErrorText,
+  Field,
+  HeroCard,
+  HeroStats,
   Hint,
   IconBox,
-  Kpi,
-  KpiRow,
   ListCard,
   ListRow,
   Loading,
-  moneyTone,
   MonthStepper,
   Screen,
   Section,
   Segmented,
-  Stat,
+  Sheet,
+  Text,
   type IconName,
 } from '../../components/ui';
-import { deleteExpense, deleteIncome, deletePayment, listExpenses, listIncomes, listPayments, listWorkers } from '../../lib/api';
+import { deleteExpense, deleteIncome, deletePayment, listBudgets, listExpenses, listIncomes, listPayments, listWorkers, setBudget } from '../../lib/api';
+import { categoryTotals } from '../../lib/calc';
+import { EXPENSE_CATEGORIES, expenseCategory, incomeCategory } from '../../lib/categories';
 import { safeFileName } from '../../lib/csv';
 import { confirmAction, errorMessage } from '../../lib/dialog';
-import { cashCsv, monthLabel } from '../../lib/documents';
+import { cashCsv, categorySummaryCsv, monthLabel } from '../../lib/documents';
 import { exportCsv } from '../../lib/export';
-import { formatDate, formatMoney, monthRange } from '../../lib/format';
-import { PAYMENT_LABELS } from '../../lib/types';
+import { formatDate, formatMoney, monthRange, parseMoney } from '../../lib/format';
+import { METHOD_LABELS, PAYMENT_LABELS } from '../../lib/types';
 import { useFocusData } from '../../lib/useAsync';
-import { categoryTone, space } from '../../theme/tokens';
+import { categoryTone, palette, space } from '../../theme/tokens';
 
 type Kind = 'income' | 'payment' | 'expense';
-type Filter = 'all' | Kind;
+type View_ = 'list' | 'categories' | 'budget';
 
 type Entry = {
   id: string;
@@ -42,23 +48,37 @@ type Entry = {
   title: string;
   sub: string;
   amount: number;
+  site: string | null;
+  icon: IconName;
+  tone: { color: string; soft: string };
   remove: () => Promise<void>;
 };
 
-const KIND: Record<Kind, { icon: IconName; tone: { color: string; soft: string }; sign: '+' | '−' }> = {
-  income: { icon: 'arrow-down-left', tone: categoryTone.income, sign: '+' },
-  payment: { icon: 'user-check', tone: categoryTone.payment, sign: '−' },
-  expense: { icon: 'arrow-up-right', tone: categoryTone.expense, sign: '−' },
-};
+const SIGN: Record<Kind, string> = { income: '+', payment: '−', expense: '−' };
+
+/** Bütçe doluluğuna göre renk: yeşil → turuncu → kırmızı */
+const usageColor = (r: number) => (r >= 1 ? palette.negative : r >= 0.8 ? '#E8913A' : palette.positive);
 
 export default function FinanceScreen() {
   const [ym, setYm] = useState(currentYearMonth());
-  const [filter, setFilter] = useState<Filter>('all');
+  const [view, setView] = useState<View_>('list');
+  const [kind, setKind] = useState<'all' | Kind>('all');
+  const [site, setSite] = useState<string>('all');
+  const [budgetFor, setBudgetFor] = useState<string | null>(null);
+  const [budgetInput, setBudgetInput] = useState('');
   const toast = useToast();
   const { start, end } = monthRange(ym.year, ym.month);
+  const label = monthLabel(ym.year, ym.month);
+
   const { data, error, loading, reload } = useFocusData(async () => {
-    const [incomes, expenses, payments, workers] = await Promise.all([listIncomes(start, end), listExpenses(start, end), listPayments(start, end), listWorkers()]);
-    return { incomes, expenses, payments, workers };
+    const [incomes, expenses, payments, workers, budgets] = await Promise.all([
+      listIncomes(start, end),
+      listExpenses(start, end),
+      listPayments(start, end),
+      listWorkers(),
+      listBudgets().catch(() => []), // göç çalıştırılmadıysa bütçesiz devam et
+    ]);
+    return { incomes, expenses, payments, workers, budgets };
   }, start);
 
   const workerName = useMemo(() => {
@@ -69,33 +89,58 @@ export default function FinanceScreen() {
   const entries = useMemo<Entry[]>(() => {
     if (!data) return [];
     return [
-      ...data.incomes.map((i) => ({ id: i.id, kind: 'income' as const, date: i.income_date, title: i.description || 'Gelir', sub: 'Gelir', amount: i.amount, remove: () => deleteIncome(i.id) })),
+      ...data.incomes.map((i) => {
+        const c = incomeCategory(i.category);
+        return { id: i.id, kind: 'income' as const, date: i.income_date, title: i.description || c.label, sub: [c.label, i.site, METHOD_LABELS[i.method]].filter(Boolean).join(' · '), amount: i.amount, site: i.site, icon: c.icon, tone: { color: c.color, soft: c.soft }, remove: () => deleteIncome(i.id) };
+      }),
       ...data.payments.map((p) => ({
         id: p.id,
         kind: 'payment' as const,
         date: p.pay_date,
         title: workerName(p.worker_id),
-        sub: `${PAYMENT_LABELS[p.kind]}${p.note ? ` · ${p.note}` : ''}`,
+        sub: [PAYMENT_LABELS[p.kind], p.note, METHOD_LABELS[p.method]].filter(Boolean).join(' · '),
         amount: p.amount,
+        site: null,
+        icon: 'user-check' as const,
+        tone: categoryTone.payment,
         remove: () => deletePayment(p.id),
       })),
-      ...data.expenses.map((e) => ({ id: e.id, kind: 'expense' as const, date: e.expense_date, title: e.description || 'Gider', sub: 'Gider', amount: e.amount, remove: () => deleteExpense(e.id) })),
+      ...data.expenses.map((e) => {
+        const c = expenseCategory(e.category);
+        return { id: e.id, kind: 'expense' as const, date: e.expense_date, title: e.description || c.label, sub: [c.label, e.site, METHOD_LABELS[e.method]].filter(Boolean).join(' · '), amount: e.amount, site: e.site, icon: c.icon, tone: { color: c.color, soft: c.soft }, remove: () => deleteExpense(e.id) };
+      }),
     ].sort((a, b) => b.date.localeCompare(a.date));
   }, [data, workerName]);
 
+  const sites = useMemo(() => [...new Set(entries.map((e) => e.site).filter((s): s is string => !!s))], [entries]);
   const sum = (k: Kind) => entries.filter((e) => e.kind === k).reduce((t, e) => t + e.amount, 0);
   const income = sum('income');
   const paid = sum('payment');
   const expense = sum('expense');
   const net = income - paid - expense;
 
-  // Günlere göre grupla: hangi gün ne olduğu tek bakışta görünsün
   const groups = useMemo(() => {
-    const shown = entries.filter((e) => filter === 'all' || e.kind === filter);
+    const shown = entries.filter((e) => (kind === 'all' || e.kind === kind) && (site === 'all' || e.site === site));
     const m = new Map<string, Entry[]>();
     for (const e of shown) m.set(e.date, [...(m.get(e.date) ?? []), e]);
     return [...m.entries()];
-  }, [entries, filter]);
+  }, [entries, kind, site]);
+
+  const expenseTotals = useMemo(() => categoryTotals(data?.expenses ?? [], data?.budgets ?? []), [data]);
+  const incomeTotals = useMemo(() => categoryTotals(data?.incomes ?? []), [data]);
+  const siteTotals = useMemo(() => {
+    const m = new Map<string, { income: number; expense: number }>();
+    for (const e of entries) {
+      if (!e.site || e.kind === 'payment') continue;
+      const t = m.get(e.site) ?? { income: 0, expense: 0 };
+      t[e.kind === 'income' ? 'income' : 'expense'] += e.amount;
+      m.set(e.site, t);
+    }
+    return [...m.entries()].sort((a, b) => b[1].income - b[1].expense - (a[1].income - a[1].expense));
+  }, [entries]);
+  const budgeted = expenseTotals.filter((t) => t.limit != null);
+  const budgetTotal = budgeted.reduce((t, x) => t + (x.limit ?? 0), 0);
+  const budgetSpent = budgeted.reduce((t, x) => t + x.total, 0);
 
   function confirmDelete(e: Entry) {
     confirmAction({
@@ -114,6 +159,22 @@ export default function FinanceScreen() {
     });
   }
 
+  async function saveBudget(remove = false) {
+    if (!budgetFor) return;
+    const v = remove ? null : parseMoney(budgetInput);
+    if (!remove && !(v! > 0)) return toast('Geçerli bir tutar girin', 'error');
+    try {
+      await setBudget(budgetFor, v);
+      toast(remove ? 'Bütçe kaldırıldı' : 'Bütçe kaydedildi');
+      setBudgetFor(null);
+      reload();
+    } catch (e) {
+      toast(errorMessage(e), 'error');
+    }
+  }
+
+  const share = (t: number, all: number) => (all > 0 ? Math.round((t / all) * 100) : 0);
+
   return (
     <Screen onRefresh={reload} refreshing={loading && !!data}>
       <MonthStepper value={ym} onChange={setYm} />
@@ -121,63 +182,259 @@ export default function FinanceScreen() {
       {loading && !data && <Loading />}
       {data && (
         <>
-          <Card style={{ gap: space.md }}>
-            <Stat label="Kasa net" value={formatMoney(net)} tone={moneyTone(net)} caption="Bu ay giren − çıkan para" />
-            <Divider />
-            <KpiRow>
-              <Kpi label="Giren" value={formatMoney(income)} tone="positive" />
-              <Kpi label="İşçilere" value={formatMoney(paid)} />
-              <Kpi label="Gider" value={formatMoney(expense)} />
-            </KpiRow>
-          </Card>
+          <Appear>
+            <HeroCard label={`${label} · kasa`} amount={net} signed caption="Giren − işçilere verilen − giderler">
+              <HeroStats
+                items={[
+                  { label: 'Giren', value: formatMoney(income), tone: 'positive' },
+                  { label: 'İşçilere', value: formatMoney(paid) },
+                  { label: 'Gider', value: formatMoney(expense) },
+                ]}
+              />
+            </HeroCard>
+          </Appear>
 
-          <Segmented<Filter>
+          <Segmented<View_>
             options={[
-              { value: 'all', label: 'Tümü' },
-              { value: 'income', label: 'Gelir' },
-              { value: 'payment', label: 'İşçi' },
-              { value: 'expense', label: 'Gider' },
+              { value: 'list', label: 'Hareketler' },
+              { value: 'categories', label: 'Dağılım' },
+              { value: 'budget', label: 'Bütçe' },
             ]}
-            value={filter}
-            onChange={setFilter}
+            value={view}
+            onChange={setView}
           />
 
-          {groups.length === 0 ? (
-            <EmptyState icon="inbox" title="Bu ay kayıt yok" description="Sağ üstteki + ile gelir, gider veya avans ekle." />
-          ) : (
-            groups.map(([date, items]) => (
-              <Section key={date} label={formatDate(date)}>
+          {view === 'list' && (
+            <>
+              <ChoiceChips<'all' | Kind>
+                options={[
+                  { value: 'all', label: 'Tümü' },
+                  { value: 'income', label: 'Gelir', icon: 'arrow-down-left', ...categoryTone.income },
+                  { value: 'expense', label: 'Gider', icon: 'arrow-up-right', ...categoryTone.expense },
+                  { value: 'payment', label: 'İşçi', icon: 'user-check', ...categoryTone.payment },
+                ]}
+                value={kind}
+                onChange={setKind}
+              />
+              {sites.length > 0 && (
+                <ChoiceChips
+                  options={[{ value: 'all', label: 'Tüm şantiyeler', icon: 'map-pin' as IconName }, ...sites.map((s) => ({ value: s, label: s, icon: 'map-pin' as IconName }))]}
+                  value={site}
+                  onChange={setSite}
+                />
+              )}
+              {groups.length === 0 ? (
+                <EmptyState icon="inbox" title="Kayıt yok" description="Sağ üstteki + ile gelir, gider veya avans ekle." />
+              ) : (
+                groups.map(([date, items], gi) => (
+                  <Appear key={date} index={gi}>
+                    <Section label={formatDate(date)} right={<Text variant="caption" tone="tertiary" numeric>{formatMoney(items.reduce((t, e) => t + (e.kind === 'income' ? e.amount : -e.amount), 0))}</Text>}>
+                      <ListCard>
+                        {items.map((e) => (
+                          <ListRow
+                            key={e.id}
+                            leading={<IconBox icon={e.icon} {...e.tone} />}
+                            title={e.title}
+                            subtitle={e.sub}
+                            value={`${SIGN[e.kind]} ${formatMoney(e.amount)}`}
+                            valueTone={e.kind === 'income' ? 'positive' : 'primary'}
+                            onLongPress={() => confirmDelete(e)}
+                          />
+                        ))}
+                      </ListCard>
+                    </Section>
+                  </Appear>
+                ))
+              )}
+              {entries.length > 0 && <Hint>Silmek için kayda basılı tut.</Hint>}
+            </>
+          )}
+
+          {view === 'categories' && (
+            <>
+              <Section label={`Giderler · ${formatMoney(expense)}`}>
+                {expenseTotals.filter((t) => t.total > 0).length === 0 ? (
+                  <Card>
+                    <Text variant="caption" tone="tertiary" align="center">
+                      Bu ay gider yok
+                    </Text>
+                  </Card>
+                ) : (
+                  <Card style={{ gap: space.lg }}>
+                    {expenseTotals
+                      .filter((t) => t.total > 0)
+                      .map((t) => {
+                        const c = expenseCategory(t.key);
+                        return (
+                          <View key={t.key} style={{ gap: space.sm }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                              <IconBox icon={c.icon} color={c.color} soft={c.soft} size={36} />
+                              <View style={{ flex: 1 }}>
+                                <Text variant="ui">{c.label}</Text>
+                                <Text variant="caption" tone="tertiary">
+                                  {t.count} kayıt · %{share(t.total, expense)}
+                                </Text>
+                              </View>
+                              <Text variant="ui" weight="semibold" numeric>
+                                {formatMoney(t.total)}
+                              </Text>
+                            </View>
+                            <AnimatedBar value={expense ? t.total / expense : 0} color={c.color} track={palette.track} />
+                          </View>
+                        );
+                      })}
+                  </Card>
+                )}
+              </Section>
+
+              <Section label={`Gelirler · ${formatMoney(income)}`}>
+                {incomeTotals.length === 0 ? (
+                  <Card>
+                    <Text variant="caption" tone="tertiary" align="center">
+                      Bu ay gelir yok
+                    </Text>
+                  </Card>
+                ) : (
+                  <ListCard>
+                    {incomeTotals.map((t) => {
+                      const c = incomeCategory(t.key);
+                      return (
+                        <ListRow
+                          key={t.key}
+                          leading={<IconBox icon={c.icon} color={c.color} soft={c.soft} />}
+                          title={c.label}
+                          subtitle={`${t.count} kayıt · %${share(t.total, income)}`}
+                          value={formatMoney(t.total)}
+                          valueTone="positive"
+                        />
+                      );
+                    })}
+                  </ListCard>
+                )}
+              </Section>
+
+              {siteTotals.length > 0 && (
+                <Section label="Şantiye bazında">
+                  <ListCard>
+                    {siteTotals.map(([name, t]) => (
+                      <ListRow
+                        key={name}
+                        leading={<IconBox icon="map-pin" {...categoryTone.worker} />}
+                        title={name}
+                        subtitle={`+${formatMoney(t.income)} · −${formatMoney(t.expense)}`}
+                        value={formatMoney(t.income - t.expense)}
+                        valueTone={t.income - t.expense < 0 ? 'negative' : 'positive'}
+                        valueSub="net"
+                      />
+                    ))}
+                  </ListCard>
+                  <Hint>İşçilik bu tabloya dahil değildir; şantiye seçerek girilen gelir ve giderler gösterilir.</Hint>
+                </Section>
+              )}
+            </>
+          )}
+
+          {view === 'budget' && (
+            <>
+              {budgeted.length > 0 && (
+                <Card style={{ gap: space.md }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <View>
+                      <Text variant="overline" tone="secondary">
+                        Bütçe kullanımı
+                      </Text>
+                      <Text variant="display" numeric>
+                        %{share(budgetSpent, budgetTotal)}
+                      </Text>
+                    </View>
+                    <Text variant="caption" tone="secondary" numeric>
+                      {formatMoney(budgetSpent)} / {formatMoney(budgetTotal)}
+                    </Text>
+                  </View>
+                  <AnimatedBar value={budgetTotal ? budgetSpent / budgetTotal : 0} color={usageColor(budgetTotal ? budgetSpent / budgetTotal : 0)} track={palette.track} height={8} />
+                </Card>
+              )}
+              <Section label="Kategori bütçeleri">
                 <ListCard>
-                  {items.map((e) => (
-                    <ListRow
-                      key={e.id}
-                      leading={<IconBox icon={KIND[e.kind].icon} {...KIND[e.kind].tone} />}
-                      title={e.title}
-                      subtitle={e.sub}
-                      value={`${KIND[e.kind].sign} ${formatMoney(e.amount)}`}
-                      valueTone={e.kind === 'income' ? 'positive' : 'primary'}
-                      onLongPress={() => confirmDelete(e)}
-                    />
-                  ))}
+                  {EXPENSE_CATEGORIES.map((c) => {
+                    const t = expenseTotals.find((x) => x.key === c.key);
+                    const spent = t?.total ?? 0;
+                    const limit = t?.limit ?? null;
+                    const ratio = limit ? spent / limit : 0;
+                    return (
+                      <PressableScale
+                        key={c.key}
+                        scale={0.99}
+                        onPress={() => {
+                          setBudgetInput(limit ? String(limit) : '');
+                          setBudgetFor(c.key);
+                        }}
+                        style={{ padding: space.lg, gap: space.sm }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                          <IconBox icon={c.icon} color={c.color} soft={c.soft} size={36} />
+                          <View style={{ flex: 1 }}>
+                            <Text variant="ui">{c.label}</Text>
+                            <Text variant="caption" tone={limit && ratio >= 1 ? 'negative' : 'tertiary'}>
+                              {limit ? (ratio >= 1 ? `Bütçe aşıldı: ${formatMoney(spent - limit)}` : `Kalan ${formatMoney(limit - spent)}`) : 'Bütçe yok · ayarlamak için dokun'}
+                            </Text>
+                          </View>
+                          <Text variant="ui" weight="semibold" numeric>
+                            {formatMoney(spent)}
+                            {limit ? <Text variant="caption" tone="tertiary">{` / ${formatMoney(limit)}`}</Text> : null}
+                          </Text>
+                        </View>
+                        {limit ? <AnimatedBar value={ratio} color={usageColor(ratio)} track={palette.track} /> : null}
+                      </PressableScale>
+                    );
+                  })}
                 </ListCard>
               </Section>
-            ))
+            </>
           )}
-          {entries.length > 0 && <Hint>Silmek için kayda basılı tut.</Hint>}
+
           <ExportMenu
-            title={`${monthLabel(ym.year, ym.month)} kasa`}
+            label="Muhasebeciye gönder"
+            title={`${label} gelir-gider`}
             options={[
               {
-                label: 'Excel — kasa dökümü',
-                subtitle: 'Tarih sıralı tüm gelir, gider ve ödemeler',
+                label: 'Excel — tüm hareketler',
+                subtitle: 'Tarih, kategori, şantiye, ödeme şekli, tutar',
                 icon: 'grid',
                 kind: 'excel',
-                run: () => exportCsv(safeFileName(`Kasa ${monthLabel(ym.year, ym.month)}`), cashCsv(data.incomes, data.payments, data.expenses, workerName)),
+                run: () =>
+                  exportCsv(
+                    safeFileName(`Gelir-Gider ${label}`),
+                    cashCsv(data.incomes, data.payments, data.expenses, workerName, { income: (k) => incomeCategory(k).label, expense: (k) => expenseCategory(k).label }),
+                  ),
+              },
+              {
+                label: 'Excel — kategori özeti',
+                subtitle: 'Kategori toplamları, bütçeler ve net',
+                icon: 'pie-chart',
+                kind: 'excel',
+                run: () =>
+                  exportCsv(
+                    safeFileName(`Ozet ${label}`),
+                    categorySummaryCsv(
+                      `${label} gelir-gider özeti`,
+                      incomeTotals.map((t) => ({ label: incomeCategory(t.key).label, total: t.total })),
+                      expenseTotals.map((t) => ({ label: expenseCategory(t.key).label, total: t.total, limit: t.limit })),
+                      paid,
+                    ),
+                  ),
               },
             ]}
           />
         </>
       )}
+
+      <Sheet visible={budgetFor !== null} title={budgetFor ? `${expenseCategory(budgetFor).label} bütçesi` : ''} subtitle="Aylık harcama sınırı" onClose={() => setBudgetFor(null)}>
+        <Field label="Aylık sınır (₺)" value={budgetInput} onChangeText={setBudgetInput} keyboardType="decimal-pad" autoFocus placeholder="ör. 20000" />
+        <Button title="Kaydet" size="lg" onPress={() => saveBudget()} />
+        {budgetFor && expenseTotals.find((t) => t.key === budgetFor)?.limit != null && <Button title="Bütçeyi kaldır" variant="danger" onPress={() => saveBudget(true)} />}
+      </Sheet>
     </Screen>
   );
 }
+

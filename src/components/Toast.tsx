@@ -32,7 +32,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {toast && (
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end', alignItems: 'center', paddingBottom: insets.bottom + 88 }]}>
-          <Animated.View style={[styles.toast, { opacity }]}>
+          <Animated.View style={[styles.toast, { opacity, transform: [{ translateY: opacity.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]}>
             <Feather name={toast.kind === 'success' ? 'check-circle' : 'alert-circle'} size={16} color={toast.kind === 'success' ? '#5EE0B0' : '#FF8A8E'} />
             <Text variant="ui" color={palette.textOnDark}>
               {toast.message}

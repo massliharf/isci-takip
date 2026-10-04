@@ -9,11 +9,11 @@ Uygulama 4 sekmeden oluşur. Hesap ayarları Özet ekranının sağ üstündedir
 
 | Ekran | Ne yapar |
 |---|---|
-| **Puantaj** | Haftalık gün şeridi; her günün altındaki nokta o günün tamam olup olmadığını gösterir. Her işçi için tek dokunuşla *Tam / Yarım / İzinli / Yok*. Kayıt anında görünür, sunucu hatasında geri alınır. "Kalanlara tam gün yaz" toplu butonu ve günlük işçilik toplamı. |
+| **Puantaj** | Günün özeti (işçilik, kaç kişi işte, mesai) koyu kartta. Toplu işlem: kalanlara tam gün, herkese yarım gün, dünkü puantajı kopyala. Her işçi için **mesai saati ve gün notu**. Haftalık gün şeridi; her günün altındaki nokta o günün tamam olup olmadığını gösterir. Her işçi için tek dokunuşla *Tam / Yarım / İzinli / Yok*. Kayıt anında görünür, sunucu hatasında geri alınır. "Kalanlara tam gün yaz" toplu butonu ve günlük işçilik toplamı. |
 | **İşçiler** | Ödenecek toplam, fazla ödenen, aktif/pasif sayısı. Arama, filtre (aktif / bakiyesi olan / tümü) ve bakiyeye ya da isme göre sıralama. |
-| **İşçi kartı** | Toplam alacak; arama ve WhatsApp butonları; *Avans ver* ve *Hesap kapat* (kalan alacağı öder). **Aylık** görünüm: devreden, hak edilen, verilen, ay sonu bakiye, dokunarak düzeltilebilen puantaj takvimi, ödemeler. **Tüm geçmiş**: ay ay gün, hak edilen, verilen ve kümülatif bakiye. |
+| **İşçi kartı** | Profil: görev (usta/kalfa/düz işçi), kıdem, saatlik mesai ücreti, IBAN (dokununca kopyalanır), acil durumda aranacak kişi, not. Toplam alacak; arama ve WhatsApp butonları; *Avans ver* ve *Hesap kapat* (kalan alacağı öder). **Aylık** görünüm: devreden, hak edilen, verilen, ay sonu bakiye, dokunarak düzeltilebilen puantaj takvimi, ödemeler. **Tüm geçmiş**: ay ay gün, hak edilen, verilen ve kümülatif bakiye. |
 | **Avans / ödeme** | İşçinin güncel alacağını gösterir. Hızlı tutar çipleri (500 / 1.000 / … / tüm alacak) ve kayıttan sonraki bakiye önizlemesi. |
-| **Kasa** | Ayın kasa neti; giren, işçilere verilen ve gider toplamları. Tarihe göre gruplanmış tek liste, türe göre filtre. Gelir ve gider için hazır açıklamalar. |
+| **Gelir-Gider** | Ayın kasa neti; giren, işçilere verilen ve gider toplamları. **Hareketler** (tarih gruplu, tür ve şantiye filtresi), **Dağılım** (kategori payları, gelir kaynakları, şantiye bazında net), **Bütçe** (kategori başına aylık sınır, aşım uyarısı). Gelir/gider girerken kategori, ödeme şekli (nakit/banka/kart) ve şantiye seçilir. Muhasebeciye Excel döküm ve kategori özeti. |
 | **Özet** | Net kalan (gelir − işçilik − gider), işçilerin ay başı ve ay sonu bakiyesi, kasa neti, puantaj istatistikleri, işçi bazında döküm. |
 | **Hesap** | Ad ve işletme adı (raporların başlığında görünür), tüm verileri dışa aktarma, çıkış. |
 
@@ -34,6 +34,7 @@ Excel dosyaları Türkçe Excel'in doğrudan açtığı biçimde (`;` ayraçlı,
 - İşçi alacağı = Σ hak edilen yevmiye − Σ (avans + ödeme). Negatifse işçiye fazla ödenmiştir.
 - **Devreden** = ay başına kadarki bakiye; **ay sonu bakiye** = devreden + bu ay hak edilen − bu ay verilen.
 - Takvimden geçmiş bir günün durumu değiştirilirse o günün kayıtlı yevmiyesi korunur.
+- **Mesai**: günlük kazanca `mesai saati × saatlik mesai ücreti` eklenir. Ücret işçide tanımlı değilse `yevmiye / 8 × 1,5` kullanılır ve o güne kopyalanır.
 - Aylık **net kalan** = gelir − işçilik gideri (hak edilen) − diğer giderler.
 - **Kasa net** = gelir − işçilere fiilen verilen − diğer giderler.
 
@@ -41,7 +42,8 @@ Excel dosyaları Türkçe Excel'in doğrudan açtığı biçimde (`;` ayraçlı,
 
 ### 1. Supabase
 1. [supabase.com](https://supabase.com) üzerinde yeni proje oluştur.
-2. **SQL Editor** → `supabase/migrations/0001_init.sql` dosyasının içeriğini yapıştırıp çalıştır
+2. **SQL Editor** → sırayla `supabase/migrations/0001_init.sql` ve `supabase/migrations/0002_advanced.sql` dosyalarını yapıştırıp çalıştır
+   (0002: mesai, işçi profili, gelir-gider kategorileri, şantiye, ödeme şekli, bütçeler; tekrar çalıştırılabilir)
    (veya Supabase CLI ile: `supabase link` + `supabase db push`).
 3. **Project Settings → API** sayfasından *Project URL* ve *anon public key*’i al.
 4. İstersen **Authentication → Providers → Email** altında “Confirm email”i kapatarak e-posta doğrulamasız üyelik açabilirsin.

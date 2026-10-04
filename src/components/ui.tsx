@@ -1,5 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useState, type ComponentProps, type ReactNode } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { PressableScale, useCountUp } from './motion';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -16,8 +19,8 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import { addDays, formatDateLong, MONTHS, shiftMonth, toISODate } from '../lib/format';
-import { control, fonts, palette, radius, space, type as typeScale, type FontWeight, type TypeVariant } from '../theme/tokens';
+import { addDays, formatDateLong, formatMoney, MONTHS, shiftMonth, toISODate } from '../lib/format';
+import { control, fonts, gradients, motion, palette, radius, space, type as typeScale, type FontWeight, type TypeVariant } from '../theme/tokens';
 
 export type IconName = ComponentProps<typeof Feather>['name'];
 
@@ -30,6 +33,9 @@ const TONES = {
   positive: palette.positive,
   negative: palette.negative,
   inverse: palette.textOnDark,
+  heroMuted: palette.heroMuted,
+  heroPositive: palette.heroPositive,
+  heroNegative: palette.heroNegative,
   link: palette.focus,
   brand: palette.brand,
 } as const;
@@ -43,6 +49,7 @@ export function Text({
   align,
   style,
   children,
+  numeric,
   ...rest
 }: {
   variant?: TypeVariant;
@@ -54,6 +61,8 @@ export function Text({
   children?: ReactNode;
   numberOfLines?: number;
   onPress?: () => void;
+  /** Rakamlar sabit genişlikte (tutar sütunları hizalı durur) */
+  numeric?: boolean;
 }) {
   const t = typeScale[variant];
   return (
@@ -67,6 +76,7 @@ export function Text({
           color: color ?? TONES[tone],
           textAlign: align,
         },
+        numeric && { fontVariant: ['tabular-nums'] },
         style,
       ]}
       {...rest}
@@ -176,7 +186,7 @@ export function Stat({ label, value, tone, caption }: { label: string; value: st
       <Text variant="overline" tone="secondary">
         {label}
       </Text>
-      <Text variant="display" tone={tone ?? 'primary'}>
+      <Text variant="display" tone={tone ?? 'primary'} numeric>
         {value}
       </Text>
       {caption ? (
@@ -189,13 +199,33 @@ export function Stat({ label, value, tone, caption }: { label: string; value: st
 }
 
 /** Küçük KPI kutusu; `KpiRow` içinde yan yana dizilir */
-export function Kpi({ label, value, tone, hint }: { label: string; value: string; tone?: Tone; hint?: string }) {
+export function Kpi({
+  label,
+  value,
+  tone,
+  hint,
+  icon,
+  accent,
+}: {
+  label: string;
+  value: string;
+  tone?: Tone;
+  hint?: string;
+  /** Renkli küçük ikon kutusu (kategori tonu) */
+  icon?: IconName;
+  accent?: { color: string; soft: string };
+}) {
   return (
     <View style={styles.kpi}>
+      {icon && accent ? (
+        <View style={[styles.kpiIcon, { backgroundColor: accent.soft }]}>
+          <Feather name={icon} size={14} color={accent.color} />
+        </View>
+      ) : null}
       <Text variant="overline" tone="secondary" numberOfLines={1}>
         {label}
       </Text>
-      <Text variant="title" weight="semibold" tone={tone ?? 'primary'} numberOfLines={1}>
+      <Text variant="title" weight="semibold" tone={tone ?? 'primary'} numberOfLines={1} numeric>
         {value}
       </Text>
       {hint ? (
@@ -203,6 +233,76 @@ export function Kpi({ label, value, tone, hint }: { label: string; value: string
           {hint}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * Koyu gradyanlı kahraman kart: ekranın ana rakamı. Rakam yeni değere akarak gelir.
+ * Altına ince satırlar (`HeroStat`) ve aksiyonlar eklenebilir.
+ */
+export function HeroCard({
+  label,
+  amount,
+  caption,
+  right,
+  children,
+  signed,
+}: {
+  label: string;
+  amount: number;
+  caption?: string;
+  right?: ReactNode;
+  children?: ReactNode;
+  /** Negatif tutarı kırmızı, pozitifi yeşil göster */
+  signed?: boolean;
+}) {
+  const shown = useCountUp(amount);
+  const color = signed ? (amount < 0 ? palette.heroNegative : amount > 0 ? palette.heroPositive : palette.heroText) : palette.heroText;
+  return (
+    <LinearGradient colors={gradients.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+      <View style={styles.heroGlow} pointerEvents="none" />
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.md }}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text variant="overline" tone="heroMuted">
+            {label}
+          </Text>
+          <Text variant="hero" color={color} numeric numberOfLines={1}>
+            {formatMoney(Math.round(shown * 100) / 100)}
+          </Text>
+          {caption ? (
+            <Text variant="caption" tone="heroMuted">
+              {caption}
+            </Text>
+          ) : null}
+        </View>
+        {right}
+      </View>
+      {children}
+    </LinearGradient>
+  );
+}
+
+/** Kahraman kartın altındaki küçük rakamlar */
+export function HeroStats({ items }: { items: { label: string; value: string; tone?: 'positive' | 'negative' }[] }) {
+  return (
+    <View style={styles.heroStats}>
+      {items.map((it, i) => (
+        <View key={it.label} style={[{ flex: 1, gap: 2 }, i > 0 && { borderLeftWidth: 1, borderLeftColor: palette.heroLine, paddingLeft: space.md }]}>
+          <Text variant="caption" tone="heroMuted" numberOfLines={1}>
+            {it.label}
+          </Text>
+          <Text
+            variant="ui"
+            weight="semibold"
+            numeric
+            numberOfLines={1}
+            color={it.tone === 'positive' ? palette.heroPositive : it.tone === 'negative' ? palette.heroNegative : palette.heroText}
+          >
+            {it.value}
+          </Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -276,7 +376,7 @@ export function ListRow({
       </View>
       {value !== undefined && (
         <View style={{ alignItems: 'flex-end', gap: 2 }}>
-          <Text variant="ui" weight="semibold" tone={valueTone ?? 'primary'}>
+          <Text variant="ui" weight="semibold" tone={valueTone ?? 'primary'} numeric>
             {value}
           </Text>
           {valueSub ? (
@@ -327,6 +427,20 @@ const BUTTON_COLORS: Record<ButtonVariant, { bg: string; fg: string; border?: st
   brand: { bg: palette.brand, fg: palette.textStrong },
 };
 
+/** Marka gradyanlı "oluştur" butonu (pembe → tuğla turuncusu) */
+export function BrandButton({ title, icon = 'plus', onPress }: { title: string; icon?: IconName; onPress: () => void }) {
+  return (
+    <PressableScale onPress={onPress} accessibilityRole="button">
+      <LinearGradient colors={gradients.brand} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.button, { height: control.md }]}>
+        <Feather name={icon} size={18} color={palette.textStrong} />
+        <Text variant="ui" weight="semibold" color={palette.textStrong}>
+          {title}
+        </Text>
+      </LinearGradient>
+    </PressableScale>
+  );
+}
+
 export function Button({
   title,
   onPress,
@@ -350,14 +464,15 @@ export function Button({
   const c = disabled ? { bg: palette.disabled, fg: palette.textSecondary } : BUTTON_COLORS[variant];
   const border = !disabled && 'border' in c ? c.border : undefined;
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      accessibilityRole="button"
+      style={[
         styles.button,
-        { height: control[size], backgroundColor: c.bg, opacity: pressed ? 0.85 : 1 },
+        { height: control[size], backgroundColor: c.bg },
         size === 'sm' && { paddingHorizontal: space.md },
-        border && { borderWidth: 1, borderColor: border },
+        border ? { borderWidth: 1, borderColor: border } : null,
         !block && { alignSelf: 'flex-start' },
       ]}
     >
@@ -371,7 +486,7 @@ export function Button({
           </Text>
         </>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -527,20 +642,48 @@ export function Segmented<T extends string>({
   value: T | null;
   onChange: (v: T) => void;
 }) {
+  // Etkin segmentin arkasındaki gösterge yaylı şekilde kayar
+  const [width, setWidth] = useState(0);
+  const index = options.findIndex((o) => o.value === value);
+  const pad = space.xs;
+  const segW = width > 0 ? (width - pad * 2 - pad * (options.length - 1)) / options.length : 0;
+  const x = useSharedValue(0);
+  const active = index >= 0 ? options[index] : null;
+  const placed = useRef(false);
+  useEffect(() => {
+    if (segW <= 0 || index < 0) return;
+    const target = index * (segW + pad);
+    // İlk yerleşimde zıplamadan konumlan, sonraki değişimlerde kay
+    x.set(placed.current ? withSpring(target, motion.spring) : target);
+    placed.current = true;
+  }, [segW, index, pad, x]);
+  const indicator = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+
   return (
-    <View style={styles.track}>
+    <View style={styles.track} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {segW > 0 && active && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.segIndicator,
+            { width: segW, left: pad, backgroundColor: active.tone ? active.tone.soft : palette.surface },
+            !active.tone && styles.segIndicatorShadow,
+            indicator,
+          ]}
+        />
+      )}
       {options.map((o) => {
-        const active = o.value === value;
+        const on = o.value === value;
         return (
           <Pressable
             key={o.value}
             onPress={() => onChange(o.value)}
             accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            style={[styles.segment, active && { backgroundColor: o.tone ? o.tone.soft : palette.surface }]}
+            accessibilityState={{ selected: on }}
+            style={styles.segment}
           >
-            {o.tone && <View style={[styles.dot, { backgroundColor: active ? o.tone.color : palette.borderStrong }]} />}
-            <Text variant="ui" weight="semibold" color={active ? (o.tone?.ink ?? palette.textPrimary) : palette.textSecondary} numberOfLines={1}>
+            {o.tone && <View style={[styles.dot, { backgroundColor: on ? o.tone.color : palette.borderStrong }]} />}
+            <Text variant="ui" weight="semibold" color={on ? (o.tone?.ink ?? palette.textPrimary) : palette.textSecondary} numberOfLines={1}>
               {o.label}
             </Text>
           </Pressable>
@@ -613,6 +756,45 @@ export function ActionMenu({
   );
 }
 
+/** Alttan açılan boş sayfa; içine form konur */
+export function Sheet({ visible, title, subtitle, onClose, children }: { visible: boolean; title: string; subtitle?: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={[styles.menu, { padding: space.lg, gap: space.lg }]} onPress={() => {}}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.md }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="heading">{title}</Text>
+              {subtitle ? (
+                <Text variant="caption" tone="secondary">
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+            <IconButton icon="x" onPress={onClose} accessibilityLabel="Kapat" />
+          </View>
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/** − değer + */
+export function NumberStepper({ value, onChange, step = 1, min = 0, max = 24, unit }: { value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number; unit?: string }) {
+  const fmt = (n: number) => String(n).replace('.', ',');
+  return (
+    <View style={[styles.stepper, { backgroundColor: palette.control, borderRadius: radius.md }]}>
+      <IconButton icon="minus" variant="ghost" onPress={() => onChange(Math.max(min, Math.round((value - step) * 100) / 100))} accessibilityLabel="Azalt" />
+      <Text variant="display" align="center" style={{ flex: 1 }} numeric>
+        {fmt(value)}
+        {unit ? <Text variant="ui" tone="secondary">{` ${unit}`}</Text> : null}
+      </Text>
+      <IconButton icon="plus" variant="ghost" onPress={() => onChange(Math.min(max, Math.round((value + step) * 100) / 100))} accessibilityLabel="Artır" />
+    </View>
+  );
+}
+
 /** Kategori renginde ikon kutusu */
 export function IconBox({ icon, color, soft, size = 40 }: { icon: IconName; color: string; soft: string; size?: number }) {
   return (
@@ -637,6 +819,43 @@ export function QuickChips({ options, onSelect }: { options: { label: string; va
           </Text>
         </Pressable>
       ))}
+    </View>
+  );
+}
+
+/** Tek seçimli çipler; seçili olan kendi renginde dolar */
+export function ChoiceChips<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string; icon?: IconName; color?: string; soft?: string }[];
+  value: T | null;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        const color = o.color ?? palette.textPrimary;
+        return (
+          <PressableScale
+            key={o.value}
+            onPress={() => onChange(o.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            style={[
+              styles.choice,
+              on && { backgroundColor: o.soft ?? palette.surface, borderColor: o.color ?? palette.textPrimary },
+            ]}
+          >
+            {o.icon && <Feather name={o.icon} size={15} color={on ? color : palette.textSecondary} />}
+            <Text variant="caption" weight={on ? 'semibold' : 'medium'} color={on ? color : palette.textPrimary}>
+              {o.label}
+            </Text>
+          </PressableScale>
+        );
+      })}
     </View>
   );
 }
@@ -782,8 +1001,33 @@ export const styles = StyleSheet.create({
   },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: space.md, height: 56, paddingHorizontal: space.sm, borderRadius: radius.sm },
   iconBox: { width: 40, height: 40, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  kpi: { flex: 1, backgroundColor: palette.surface, borderRadius: radius.md, padding: space.md, gap: 2 },
+  kpi: { flex: 1, backgroundColor: palette.surface, borderRadius: radius.lg, padding: space.md, gap: 2 },
+  kpiIcon: { width: 28, height: 28, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
+  hero: { borderRadius: radius.lg + 4, padding: space.xl, gap: space.lg, overflow: 'hidden' },
+  heroGlow: {
+    position: 'absolute',
+    right: -60,
+    top: -80,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255,87,174,0.16)',
+  },
+  heroStats: { flexDirection: 'row', gap: space.md, borderTopWidth: 1, borderTopColor: palette.heroLine, paddingTop: space.md },
+  segIndicator: { position: 'absolute', top: space.xs, bottom: space.xs, borderRadius: 6 },
+  segIndicatorShadow: { shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: 64 },
+  choice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 36,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: palette.control,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
   quickChip: {
     height: 32,
     paddingHorizontal: space.md,

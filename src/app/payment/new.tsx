@@ -4,6 +4,7 @@ import { useToast } from '../../components/Toast';
 import {
   Avatar,
   Button,
+  ChoiceChips,
   Card,
   DateField,
   ErrorText,
@@ -24,7 +25,7 @@ import { createPayment, listWorkerBalances, listWorkers } from '../../lib/api';
 import { errorMessage } from '../../lib/dialog';
 import { formatMoney, parseMoney, toISODate } from '../../lib/format';
 import { successFeedback } from '../../lib/haptics';
-import { PAYMENT_LABELS, type PaymentKind } from '../../lib/types';
+import { METHOD_LABELS, PAYMENT_LABELS, type PayMethod, type PaymentKind } from '../../lib/types';
 import { useFocusData } from '../../lib/useAsync';
 
 const ADVANCE_PRESETS = [500, 1000, 2000, 5000];
@@ -36,6 +37,7 @@ export default function NewPayment() {
   const [amount, setAmount] = useState(params.suggested && Number(params.suggested) > 0 ? params.suggested : '');
   const [date, setDate] = useState(toISODate(new Date()));
   const [note, setNote] = useState('');
+  const [method, setMethod] = useState<PayMethod>('nakit');
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export default function NewPayment() {
     if (!(value > 0)) return setError('Geçerli bir tutar girin');
     setBusy(true);
     try {
-      await createPayment({ worker_id: workerId, pay_date: date, amount: value, kind, note: note.trim() || null });
+      await createPayment({ worker_id: workerId, pay_date: date, amount: value, kind, note: note.trim() || null, method });
       successFeedback();
       toast(`${PAYMENT_LABELS[kind]} kaydedildi: ${formatMoney(value)}`);
       router.back();
@@ -123,6 +125,14 @@ export default function NewPayment() {
                   Kayıttan sonra {after < 0 ? `fazla ödenmiş olacak: ${formatMoney(-after)}` : `kalan alacağı: ${formatMoney(after)}`}
                 </Text>
               )}
+              <ChoiceChips<PayMethod>
+                options={[
+                  { value: 'nakit', label: METHOD_LABELS.nakit, icon: 'dollar-sign' },
+                  { value: 'banka', label: METHOD_LABELS.banka, icon: 'credit-card' },
+                ]}
+                value={method}
+                onChange={setMethod}
+              />
               <DateField label="Tarih" value={date} onChange={setDate} />
               <Field label="Not" value={note} onChangeText={setNote} placeholder="İsteğe bağlı (ör. bayram avansı)" />
             </FormStack>

@@ -29,11 +29,11 @@ function FinanceCreateButton() {
       <CreateButton label="Kayıt ekle" onPress={() => setOpen(true)} />
       <ActionMenu
         visible={open}
-        title="Kasaya ekle"
+        title="Gelir-gider ekle"
         onClose={() => setOpen(false)}
         items={[
-          { label: 'Gelir', subtitle: 'Hakediş, müşteri ödemesi', icon: 'arrow-down-left', ...categoryTone.income, onPress: () => router.push('/income/new') },
-          { label: 'Gider', subtitle: 'Malzeme, nakliye, yemek', icon: 'arrow-up-right', ...categoryTone.expense, onPress: () => router.push('/expense/new') },
+          { label: 'Gelir', subtitle: 'Hakediş, müşteri avansı, ek iş', icon: 'arrow-down-left', ...categoryTone.income, onPress: () => router.push('/income/new') },
+          { label: 'Gider', subtitle: 'Malzeme, nakliye, yakıt, kira, vergi', icon: 'arrow-up-right', ...categoryTone.expense, onPress: () => router.push('/expense/new') },
           { label: 'Avans / ödeme', subtitle: 'İşçiye verilen para', icon: 'user-check', ...categoryTone.payment, onPress: () => router.push('/payment/new') },
         ]}
       />
@@ -62,7 +62,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="finance"
-        options={{ title: 'Kasa', tabBarIcon: icon('credit-card'), headerRight: () => <FinanceCreateButton /> }}
+        options={{ title: 'Gelir-Gider', tabBarIcon: icon('trending-up'), headerRight: () => <FinanceCreateButton /> }}
       />
       <Tabs.Screen
         name="report"

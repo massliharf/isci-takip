@@ -5,8 +5,11 @@ import { ExportMenu } from '../../components/ExportMenu';
 import {
   Avatar,
   Card,
+  HeroCard,
+  HeroStats,
+  IconBox,
+  Text,
   currentYearMonth,
-  Divider,
   EmptyState,
   ErrorText,
   Kpi,
@@ -16,20 +19,20 @@ import {
   Loading,
   moneyTone,
   MonthStepper,
-  Row,
   Screen,
   Section,
-  Stat,
 } from '../../components/ui';
 import { FAR_FUTURE, listAttendance, listExpenses, listIncomes, listPayments, listWorkerBalances, listWorkers } from '../../lib/api';
 import { useBusinessName } from '../../lib/auth';
-import { buildMonthReport, openingBalances, puantajGrid } from '../../lib/calc';
+import { buildMonthReport, categoryTotals, openingBalances, puantajGrid } from '../../lib/calc';
+import { expenseCategory } from '../../lib/categories';
+import { AnimatedBar, Appear } from '../../components/motion';
 import { safeFileName } from '../../lib/csv';
 import { monthLabel, monthReportCsv, monthReportHtml, puantajGridCsv, puantajGridHtml } from '../../lib/documents';
 import { exportCsv, exportPdf } from '../../lib/export';
 import { formatMoney, formatNumber, fromISODate, monthRange } from '../../lib/format';
 import { useFocusData } from '../../lib/useAsync';
-import { space } from '../../theme/tokens';
+import { categoryTone, palette, space } from '../../theme/tokens';
 
 export default function SummaryScreen() {
   const [ym, setYm] = useState(currentYearMonth());
@@ -55,11 +58,13 @@ export default function SummaryScreen() {
       workers,
       report: buildMonthReport(workers, attendance, payments, incomes, expenses, openings),
       grid: puantajGrid(workers, attendance, daysInMonth),
+      topExpenses: categoryTotals(expenses).slice(0, 4),
     };
   }, start);
 
   const report = data?.report;
   const totalDays = report?.workers.reduce((t, w) => t + w.workedDays, 0) ?? 0;
+  const totalOt = report?.workers.reduce((t, w) => t + w.overtimeHours, 0) ?? 0;
   // En az bir işçinin çalıştığı gün sayısı
   const workingDays = data ? new Set(data.grid.flatMap((r) => r.cells.flatMap((c, i) => (c === 'full' || c === 'half' ? [i] : [])))).size : 0;
 
@@ -70,31 +75,57 @@ export default function SummaryScreen() {
       {loading && !data && <Loading />}
       {report && data && (
         <>
-          <Card style={{ gap: space.md }}>
-            <Stat label="Net kalan" value={formatMoney(report.net)} tone={moneyTone(report.net)} caption="Gelir − işçilik − diğer giderler" />
-            <Divider />
-            <View style={{ gap: space.xs }}>
-              <Row label="Gelir" value={`+ ${formatMoney(report.totalIncome)}`} tone="positive" />
-              <Row label="İşçilik (hak edilen yevmiye)" value={`− ${formatMoney(report.totalLabor)}`} />
-              <Row label="Diğer giderler" value={`− ${formatMoney(report.totalOtherExpense)}`} />
-            </View>
-          </Card>
+          <Appear>
+            <HeroCard label={`${label} · net kalan`} amount={report.net} signed caption="Gelir − işçilik (yevmiye + mesai) − diğer giderler">
+              <HeroStats
+                items={[
+                  { label: 'Gelir', value: formatMoney(report.totalIncome), tone: 'positive' },
+                  { label: 'İşçilik', value: formatMoney(report.totalLabor) },
+                  { label: 'Diğer gider', value: formatMoney(report.totalOtherExpense) },
+                ]}
+              />
+            </HeroCard>
+          </Appear>
+
+          {data.topExpenses.length > 0 && (
+            <Section label="En çok harcanan">
+              <Card style={{ gap: space.md }}>
+                {data.topExpenses.map((t) => {
+                  const c = expenseCategory(t.key);
+                  return (
+                    <View key={t.key} style={{ gap: space.xs }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+                        <IconBox icon={c.icon} color={c.color} soft={c.soft} size={28} />
+                        <Text variant="ui" style={{ flex: 1 }}>
+                          {c.label}
+                        </Text>
+                        <Text variant="ui" weight="semibold" numeric>
+                          {formatMoney(t.total)}
+                        </Text>
+                      </View>
+                      <AnimatedBar value={report.totalOtherExpense ? t.total / report.totalOtherExpense : 0} color={c.color} track={palette.track} />
+                    </View>
+                  );
+                })}
+              </Card>
+            </Section>
+          )}
 
           <Section label="İşçi hesabı">
             <KpiRow>
-              <Kpi label="Devreden" value={formatMoney(report.totalOpening)} hint="Ay başı işçi bakiyesi" />
-              <Kpi label="Ay sonu" value={formatMoney(report.totalClosing)} hint={report.totalClosing < 0 ? 'İşçilerden alacak' : 'İşçilere ödenecek'} />
+              <Kpi icon="corner-down-right" accent={categoryTone.worker} label="Devreden" value={formatMoney(report.totalOpening)} hint="Ay başı işçi bakiyesi" />
+              <Kpi icon="flag" accent={categoryTone.expense} label="Ay sonu" value={formatMoney(report.totalClosing)} hint={report.totalClosing < 0 ? 'İşçilerden alacak' : 'İşçilere ödenecek'} />
             </KpiRow>
             <KpiRow>
-              <Kpi label="Verilen" value={formatMoney(report.totalPaid)} hint="Avans + ödeme" />
-              <Kpi label="Kasa net" value={formatMoney(report.cashNet)} tone={moneyTone(report.cashNet)} hint="Gelir − verilen − gider" />
+              <Kpi icon="arrow-up-right" accent={categoryTone.payment} label="Verilen" value={formatMoney(report.totalPaid)} hint="Avans + ödeme" />
+              <Kpi icon="credit-card" accent={categoryTone.income} label="Kasa net" value={formatMoney(report.cashNet)} tone={moneyTone(report.cashNet)} hint="Gelir − verilen − gider" />
             </KpiRow>
           </Section>
 
           <Section label="Puantaj">
             <KpiRow>
-              <Kpi label="Toplam iş günü" value={formatNumber(totalDays)} hint={`${report.workers.filter((w) => w.workedDays > 0).length} işçi`} />
-              <Kpi label="Çalışılan gün" value={String(workingDays)} hint={workingDays > 0 ? `Günlük ort. ${formatMoney(report.totalLabor / workingDays)}` : '—'} />
+              <Kpi icon="users" accent={categoryTone.worker} label="Toplam iş günü" value={formatNumber(totalDays)} hint={`${report.workers.filter((w) => w.workedDays > 0).length} işçi`} />
+              <Kpi icon="clock" accent={{ color: '#C25A12', soft: 'rgba(255,138,61,0.14)' }} label="Mesai" value={`${formatNumber(totalOt)} saat`} hint={workingDays > 0 ? `${workingDays} iş günü` : '—'} />
             </KpiRow>
           </Section>
 

@@ -10,8 +10,19 @@ export const STATUS_FACTOR: Record<AttendanceStatus, number> = {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function attendanceEarning(a: Pick<Attendance, 'status' | 'daily_wage'>): number {
-  return round2(Number(a.daily_wage) * STATUS_FACTOR[a.status]);
+type EarningInput = Pick<Attendance, 'status' | 'daily_wage'> & Partial<Pick<Attendance, 'overtime_hours' | 'overtime_rate'>>;
+
+export const overtimeAmount = (a: Partial<Pick<Attendance, 'overtime_hours' | 'overtime_rate'>>): number =>
+  round2(Number(a.overtime_hours ?? 0) * Number(a.overtime_rate ?? 0));
+
+/** Günlük kazanç: yevmiye × gün çarpanı + mesai saati × saatlik mesai ücreti */
+export function attendanceEarning(a: EarningInput): number {
+  return round2(Number(a.daily_wage) * STATUS_FACTOR[a.status] + overtimeAmount(a));
+}
+
+/** Saatlik mesai ücreti: tanımlıysa işçininki, değilse yevmiye / 8 × 1,5 */
+export function overtimeRateFor(w: Pick<Worker, 'daily_wage' | 'overtime_rate'>): number {
+  return w.overtime_rate != null && Number(w.overtime_rate) > 0 ? Number(w.overtime_rate) : round2((Number(w.daily_wage) / 8) * 1.5);
 }
 
 export interface WorkerSummary {
@@ -22,7 +33,9 @@ export interface WorkerSummary {
   absentDays: number;
   leaveDays: number;
   workedDays: number; // tam + yarım*0.5
-  earned: number; // hak edilen yevmiye toplamı
+  earned: number; // hak edilen toplam (yevmiye + mesai)
+  overtimeHours: number;
+  overtimeEarned: number;
   advances: number;
   payments: number;
   paid: number; // avans + ödeme
@@ -46,6 +59,8 @@ export function summarizeWorker(
     leaveDays: 0,
     workedDays: 0,
     earned: 0,
+    overtimeHours: 0,
+    overtimeEarned: 0,
     advances: 0,
     payments: 0,
     paid: 0,
@@ -61,6 +76,8 @@ export function summarizeWorker(
     else s.leaveDays++;
     s.workedDays += STATUS_FACTOR[a.status];
     s.earned += attendanceEarning(a);
+    s.overtimeHours += Number(a.overtime_hours ?? 0);
+    s.overtimeEarned += overtimeAmount(a);
   }
   for (const p of payments) {
     if (p.worker_id !== worker.id) continue;
@@ -68,6 +85,7 @@ export function summarizeWorker(
     else s.payments += Number(p.amount);
   }
   s.earned = round2(s.earned);
+  s.overtimeEarned = round2(s.overtimeEarned);
   s.advances = round2(s.advances);
   s.payments = round2(s.payments);
   s.paid = round2(s.advances + s.payments);
@@ -123,7 +141,7 @@ export function buildMonthReport(
  */
 export function openingBalances(
   allTime: { worker_id: string; balance: number }[],
-  attendanceSince: Pick<Attendance, 'worker_id' | 'status' | 'daily_wage'>[],
+  attendanceSince: (Pick<Attendance, 'worker_id'> & EarningInput)[],
   paymentsSince: Pick<Payment, 'worker_id' | 'amount'>[],
 ): Map<string, number> {
   const delta = new Map<string, number>();
@@ -144,6 +162,7 @@ export interface MonthHistoryRow {
   leaveDays: number;
   absentDays: number;
   workedDays: number;
+  overtimeHours: number;
   earned: number;
   paid: number;
   balance: number; // ay farkı
@@ -157,7 +176,7 @@ export function monthlyHistory(attendance: Attendance[], payments: Payment[]): M
     let r = rows.get(key);
     if (!r) {
       const [y, m] = key.split('-').map(Number);
-      r = { key, year: y, month: m - 1, fullDays: 0, halfDays: 0, leaveDays: 0, absentDays: 0, workedDays: 0, earned: 0, paid: 0, balance: 0, cumulative: 0 };
+      r = { key, year: y, month: m - 1, fullDays: 0, halfDays: 0, leaveDays: 0, absentDays: 0, workedDays: 0, overtimeHours: 0, earned: 0, paid: 0, balance: 0, cumulative: 0 };
       rows.set(key, r);
     }
     return r;
@@ -169,6 +188,7 @@ export function monthlyHistory(attendance: Attendance[], payments: Payment[]): M
     else if (a.status === 'leave') r.leaveDays++;
     else r.absentDays++;
     r.workedDays += STATUS_FACTOR[a.status];
+    r.overtimeHours += Number(a.overtime_hours ?? 0);
     r.earned += attendanceEarning(a);
   }
   for (const p of payments) row(monthKey(p.pay_date)).paid += Number(p.amount);
@@ -189,7 +209,9 @@ export interface GridRow {
   name: string;
   dailyWage: number;
   cells: (AttendanceStatus | null)[]; // ayın her günü için
+  overtime: number[]; // günlük mesai saatleri
   workedDays: number;
+  overtimeHours: number;
   earned: number;
 }
 
@@ -202,15 +224,40 @@ export function puantajGrid(
   return workers
     .map((w) => {
       const cells: (AttendanceStatus | null)[] = Array(daysInMonth).fill(null);
+      const overtime: number[] = Array(daysInMonth).fill(0);
       let workedDays = 0;
+      let overtimeHours = 0;
       let earned = 0;
       for (const a of attendance) {
         if (a.worker_id !== w.id) continue;
-        cells[Number(a.work_date.slice(8, 10)) - 1] = a.status;
+        const day = Number(a.work_date.slice(8, 10)) - 1;
+        cells[day] = a.status;
+        overtime[day] = Number(a.overtime_hours ?? 0);
+        overtimeHours += overtime[day];
         workedDays += STATUS_FACTOR[a.status];
         earned += attendanceEarning(a);
       }
-      return { workerId: w.id, name: w.full_name, dailyWage: Number(w.daily_wage), cells, workedDays, earned: round2(earned) };
+      return { workerId: w.id, name: w.full_name, dailyWage: Number(w.daily_wage), cells, overtime, workedDays, overtimeHours, earned: round2(earned) };
     })
     .filter((r) => r.cells.some((c) => c !== null));
+}
+
+export interface CategoryTotal {
+  key: string;
+  total: number;
+  count: number;
+  limit: number | null; // aylık bütçe
+}
+
+/** Kategori bazında toplamlar (büyükten küçüğe) ve varsa bütçe sınırı */
+export function categoryTotals(rows: { category: string; amount: number }[], budgets: { category: string; monthly_limit: number }[] = []): CategoryTotal[] {
+  const m = new Map<string, CategoryTotal>();
+  for (const b of budgets) m.set(b.category, { key: b.category, total: 0, count: 0, limit: Number(b.monthly_limit) });
+  for (const r of rows) {
+    const t = m.get(r.category) ?? { key: r.category, total: 0, count: 0, limit: null };
+    t.total = round2(t.total + Number(r.amount));
+    t.count++;
+    m.set(r.category, t);
+  }
+  return [...m.values()].sort((a, b) => b.total - a.total || (b.limit ?? 0) - (a.limit ?? 0));
 }

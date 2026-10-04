@@ -16,9 +16,9 @@ export const stackScreenOptions = {
 
 export const tabScreenOptions = {
   ...header,
-  headerTitleStyle: { fontFamily: fonts.semibold, fontSize: 20, color: palette.textPrimary },
+  headerTitleStyle: { fontFamily: fonts.semibold, fontSize: 22, letterSpacing: -0.6, color: palette.textPrimary },
   headerTitleAlign: 'left',
-  tabBarActiveTintColor: palette.textPrimary,
+  tabBarActiveTintColor: palette.brandInk,
   tabBarInactiveTintColor: palette.textTertiary,
   tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 11 },
   tabBarStyle: { backgroundColor: palette.surface, borderTopColor: palette.border },

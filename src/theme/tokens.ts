@@ -24,8 +24,19 @@ export const palette = {
 
   // aksiyon
   actionPrimary: '#1A1A1A', // sayfa aksiyonu (siyah buton)
-  brand: '#FF57AE', // yalnızca "oluştur" girişi
+  brand: '#FF57AE', // "oluştur" girişi ve marka vurgusu
+  brand2: '#FF8A3D', // marka gradyanının ikinci ucu (tuğla turuncusu)
   brandSoft: 'rgba(255,88,174,0.15)',
+  brandInk: '#C2186F',
+
+  // koyu kahraman kart (ekranın ana rakamı)
+  hero: '#141414',
+  hero2: '#2B2530',
+  heroText: '#FFFFFF',
+  heroMuted: 'rgba(255,255,255,0.62)',
+  heroLine: 'rgba(255,255,255,0.12)',
+  heroPositive: '#5EE0B0',
+  heroNegative: '#FF8A8E',
   focus: '#3B6FE8',
   info: '#506BF2',
 
@@ -67,9 +78,10 @@ export type FontWeight = keyof typeof fonts;
  * oranlar (UI < gövde < başlık < display) korundu.
  */
 export const type = {
-  display: { fontSize: 28, lineHeight: 36, weight: 'semibold', letterSpacing: -0.4 },
-  heading: { fontSize: 20, lineHeight: 28, weight: 'medium', letterSpacing: -0.2 },
-  title: { fontSize: 16, lineHeight: 22, weight: 'medium', letterSpacing: 0 },
+  hero: { fontSize: 38, lineHeight: 44, weight: 'semibold', letterSpacing: -1.4 },
+  display: { fontSize: 28, lineHeight: 34, weight: 'semibold', letterSpacing: -0.8 },
+  heading: { fontSize: 20, lineHeight: 26, weight: 'semibold', letterSpacing: -0.4 },
+  title: { fontSize: 16, lineHeight: 22, weight: 'medium', letterSpacing: -0.2 },
   body: { fontSize: 15, lineHeight: 22, weight: 'regular', letterSpacing: 0 },
   ui: { fontSize: 14, lineHeight: 20, weight: 'medium', letterSpacing: 0 },
   caption: { fontSize: 13, lineHeight: 18, weight: 'regular', letterSpacing: 0 },
@@ -84,4 +96,20 @@ export const categoryTone = {
   expense: { color: '#CC7E80', soft: 'rgba(204,126,128,0.14)' },
   payment: { color: '#4F69F2', soft: 'rgba(79,105,242,0.12)' },
   worker: { color: '#8566DC', soft: 'rgba(133,102,220,0.12)' },
+} as const;
+
+/** Gradyanlar: marka (logo, oluştur) ve koyu kahraman kart */
+export const gradients = {
+  brand: ['#FF57AE', '#FF8A3D'] as const,
+  hero: ['#141414', '#2B2530'] as const,
+};
+
+/** Hareket: kısa, yaylı ve tutarlı. Basınca hafif küçülme, içerik aşağıdan yükselerek gelir. */
+export const motion = {
+  pressScale: 0.97,
+  fast: 160,
+  base: 260,
+  slow: 520,
+  stagger: 45,
+  spring: { damping: 18, stiffness: 220, mass: 0.9 },
 } as const;
