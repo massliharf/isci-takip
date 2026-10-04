@@ -44,7 +44,11 @@ npx eas-cli@latest build --platform ios
 npx eas-cli@latest build --platform android
 ```
 
-### 4. Web (EAS Hosting)
+### 4. Web (GitHub Pages) — otomatik
+Her push'ta `.github/workflows/pages.yml` web sürümünü derleyip **https://massliharf.github.io/isci-takip/** adresine yayınlar.
+İlk kurulumda bir kez: GitHub → **Settings → Pages → Source: GitHub Actions**.
+
+### 5. Web (EAS Hosting) — alternatif
 ```bash
 npx eas-cli@latest login     # ilk sefer
 npm run deploy:web           # dist/ klasörünü oluşturur ve yayınlar → https://<ad>.expo.app
