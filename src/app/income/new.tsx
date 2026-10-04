@@ -8,6 +8,8 @@ export default function NewIncome() {
     <Screen>
       <MoneyEntryForm
         descriptionLabel="Açıklama (ör. X şantiyesi hakediş)"
+        descriptionPresets={['Hakediş', 'Avans (müşteri)', 'Kalan ödeme', 'Ek iş']}
+        successLabel="Gelir kaydedildi"
         onSubmit={async ({ date, amount, description }) => {
           await createIncome({ income_date: date, amount, description });
           router.back();

@@ -5,6 +5,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text as RNText,
@@ -87,10 +88,26 @@ export function moneyTone(n: number): Tone {
 
 // ───────────────────────── Yerleşim ─────────────────────────
 
-export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
+export function Screen({
+  children,
+  scroll = true,
+  onRefresh,
+  refreshing = false,
+}: {
+  children: ReactNode;
+  scroll?: boolean;
+  /** Verilirse aşağı çekerek yenileme açılır */
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}) {
   if (!scroll) return <View style={[styles.screen, { flex: 1 }]}>{children}</View>;
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.screen}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.textSecondary} /> : undefined}
+    >
       {children}
     </ScrollView>
   );
@@ -167,6 +184,133 @@ export function Stat({ label, value, tone, caption }: { label: string; value: st
           {caption}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+/** Küçük KPI kutusu; `KpiRow` içinde yan yana dizilir */
+export function Kpi({ label, value, tone, hint }: { label: string; value: string; tone?: Tone; hint?: string }) {
+  return (
+    <View style={styles.kpi}>
+      <Text variant="overline" tone="secondary" numberOfLines={1}>
+        {label}
+      </Text>
+      <Text variant="title" weight="semibold" tone={tone ?? 'primary'} numberOfLines={1}>
+        {value}
+      </Text>
+      {hint ? (
+        <Text variant="caption" tone="tertiary" numberOfLines={1}>
+          {hint}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+export function KpiRow({ children }: { children: ReactNode }) {
+  return <View style={{ flexDirection: 'row', gap: space.sm }}>{children}</View>;
+}
+
+const AVATAR_TONES = ['#8566DC', '#4F69F2', '#17CB8D', '#00CDC6', '#CC7E80', '#B39581'];
+
+/** Baş harfli yuvarlak; renk isimden türetilir, aynı kişi hep aynı renkte görünür */
+export function Avatar({ name, size = 40, muted }: { name: string; size?: number; muted?: boolean }) {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0] ?? '')
+    .join('');
+  const hash = [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const color = muted ? palette.textTertiary : AVATAR_TONES[hash % AVATAR_TONES.length];
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: `${color}22`, alignItems: 'center', justifyContent: 'center' }}>
+      <Text variant="ui" weight="semibold" color={color} style={{ fontSize: size * 0.36, lineHeight: size * 0.44 }}>
+        {upperTr(initials)}
+      </Text>
+    </View>
+  );
+}
+
+/** Liste satırı: solda öğe (avatar/ikon), ortada başlık + alt satır, sağda değer */
+export function ListRow({
+  leading,
+  title,
+  subtitle,
+  value,
+  valueTone,
+  valueSub,
+  onPress,
+  onLongPress,
+  chevron,
+  muted,
+}: {
+  leading?: ReactNode;
+  title: string;
+  subtitle?: string;
+  value?: string;
+  valueTone?: Tone;
+  valueSub?: string;
+  onPress?: () => void;
+  onLongPress?: () => void;
+  chevron?: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      disabled={!onPress && !onLongPress}
+      style={({ pressed }) => [styles.listRow, pressed && { backgroundColor: palette.controlActive }, muted && { opacity: 0.6 }]}
+    >
+      {leading}
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="title" numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text variant="caption" tone="secondary" numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {value !== undefined && (
+        <View style={{ alignItems: 'flex-end', gap: 2 }}>
+          <Text variant="ui" weight="semibold" tone={valueTone ?? 'primary'}>
+            {value}
+          </Text>
+          {valueSub ? (
+            <Text variant="caption" tone="tertiary">
+              {valueSub}
+            </Text>
+          ) : null}
+        </View>
+      )}
+      {chevron && <Feather name="chevron-right" size={18} color={palette.textTertiary} />}
+    </Pressable>
+  );
+}
+
+/** Kart içinde ayırıcılı liste */
+export function ListCard({ children }: { children: ReactNode[] }) {
+  const items = children.filter(Boolean);
+  return (
+    <Card padded={false}>
+      {items.map((child, i) => (
+        <View key={i}>
+          {i > 0 && <Divider inset={space.lg} />}
+          {child}
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+/** İnce ilerleme çubuğu (0–1) */
+export function Progress({ value, color = palette.positive }: { value: number; color?: string }) {
+  return (
+    <View style={{ height: 6, borderRadius: 3, backgroundColor: palette.track, overflow: 'hidden' }}>
+      <View style={{ width: `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%`, height: '100%', backgroundColor: color, borderRadius: 3 }} />
     </View>
   );
 }
@@ -408,10 +552,30 @@ export function Segmented<T extends string>({
 
 // ───────────────────────── Menü ─────────────────────────
 
-export type MenuItem = { label: string; icon: IconName; color: string; soft: string; onPress: () => void };
+export type MenuItem = {
+  label: string;
+  subtitle?: string;
+  icon: IconName;
+  color: string;
+  soft: string;
+  onPress: () => void;
+  selected?: boolean;
+};
 
-/** Alttan açılan oluştur menüsü. Her öğe kendi kategori renginde ikon kutusuyla gösterilir. */
-export function ActionMenu({ visible, title, items, onClose }: { visible: boolean; title: string; items: MenuItem[]; onClose: () => void }) {
+/** Alttan açılan menü. Her öğe kendi kategori renginde ikon kutusuyla gösterilir. */
+export function ActionMenu({
+  visible,
+  title,
+  items,
+  onClose,
+  footer,
+}: {
+  visible: boolean;
+  title: string;
+  items: MenuItem[];
+  onClose: () => void;
+  footer?: ReactNode;
+}) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -431,9 +595,18 @@ export function ActionMenu({ visible, title, items, onClose }: { visible: boolea
               <View style={[styles.iconBox, { backgroundColor: it.soft }]}>
                 <Feather name={it.icon} size={18} color={it.color} />
               </View>
-              <Text variant="title">{it.label}</Text>
+              <View style={{ flex: 1 }}>
+                <Text variant="title">{it.label}</Text>
+                {it.subtitle ? (
+                  <Text variant="caption" tone="secondary">
+                    {it.subtitle}
+                  </Text>
+                ) : null}
+              </View>
+              {it.selected && <Feather name="check" size={18} color={palette.textPrimary} />}
             </Pressable>
           ))}
+          {footer}
         </Pressable>
       </Pressable>
     </Modal>
@@ -445,6 +618,42 @@ export function IconBox({ icon, color, soft, size = 40 }: { icon: IconName; colo
   return (
     <View style={[styles.iconBox, { width: size, height: size, backgroundColor: soft }]}>
       <Feather name={icon} size={Math.round(size * 0.45)} color={color} />
+    </View>
+  );
+}
+
+/** Hızlı seçim çipleri (ör. tutar önerileri) */
+export function QuickChips({ options, onSelect }: { options: { label: string; value: string }[]; onSelect: (v: string) => void }) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+      {options.map((o) => (
+        <Pressable
+          key={o.label}
+          onPress={() => onSelect(o.value)}
+          style={({ pressed }) => [styles.quickChip, pressed && { backgroundColor: palette.controlActive }]}
+        >
+          <Text variant="caption" weight="medium">
+            {o.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+export function SearchField({ value, onChangeText, placeholder }: { value: string; onChangeText: (v: string) => void; placeholder: string }) {
+  return (
+    <View style={styles.search}>
+      <Feather name="search" size={16} color={palette.textTertiary} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={palette.textTertiary}
+        style={[{ flex: 1, fontFamily: fonts.regular, fontSize: 16, color: palette.textPrimary, height: '100%' }, Platform.OS === 'web' && WEB_NO_OUTLINE]}
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+      />
     </View>
   );
 }
@@ -573,6 +782,24 @@ export const styles = StyleSheet.create({
   },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: space.md, height: 56, paddingHorizontal: space.sm, borderRadius: radius.sm },
   iconBox: { width: 40, height: 40, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  kpi: { flex: 1, backgroundColor: palette.surface, borderRadius: radius.md, padding: space.md, gap: 2 },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: 64 },
+  quickChip: {
+    height: 32,
+    paddingHorizontal: space.md,
+    borderRadius: radius.pill,
+    backgroundColor: palette.control,
+    justifyContent: 'center',
+  },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    height: control.md,
+    paddingHorizontal: space.md,
+    borderRadius: radius.sm,
+    backgroundColor: palette.surface,
+  },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',

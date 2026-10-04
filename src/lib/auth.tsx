@@ -22,3 +22,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+
+/** Belgelerde başlık olarak kullanılan işletme adı */
+export function useBusinessName(): string {
+  const { session } = useAuth();
+  return String(session?.user.user_metadata?.business_name ?? '');
+}

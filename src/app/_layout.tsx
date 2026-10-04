@@ -6,6 +6,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
+import { ToastProvider } from '../components/Toast';
 import { EmptyState, Loading } from '../components/ui';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { isSupabaseConfigured } from '../lib/supabase';
@@ -41,6 +42,7 @@ function RootNavigator() {
         <Stack.Screen name="payment/new" options={{ title: 'Avans / ödeme', presentation: 'modal' }} />
         <Stack.Screen name="income/new" options={{ title: 'Gelir ekle', presentation: 'modal' }} />
         <Stack.Screen name="expense/new" options={{ title: 'Gider ekle', presentation: 'modal' }} />
+        <Stack.Screen name="settings" options={{ title: 'Hesap' }} />
       </Stack.Protected>
     </Stack>
   );
@@ -53,8 +55,10 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
-      <RootNavigator />
+      <ToastProvider>
+        <StatusBar style="dark" />
+        <RootNavigator />
+      </ToastProvider>
     </AuthProvider>
   );
 }

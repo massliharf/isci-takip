@@ -32,9 +32,9 @@ function FinanceCreateButton() {
         title="Kasaya ekle"
         onClose={() => setOpen(false)}
         items={[
-          { label: 'Gelir', icon: 'arrow-down-left', ...categoryTone.income, onPress: () => router.push('/income/new') },
-          { label: 'Gider', icon: 'arrow-up-right', ...categoryTone.expense, onPress: () => router.push('/expense/new') },
-          { label: 'Avans / ödeme', icon: 'user-check', ...categoryTone.payment, onPress: () => router.push('/payment/new') },
+          { label: 'Gelir', subtitle: 'Hakediş, müşteri ödemesi', icon: 'arrow-down-left', ...categoryTone.income, onPress: () => router.push('/income/new') },
+          { label: 'Gider', subtitle: 'Malzeme, nakliye, yemek', icon: 'arrow-up-right', ...categoryTone.expense, onPress: () => router.push('/expense/new') },
+          { label: 'Avans / ödeme', subtitle: 'İşçiye verilen para', icon: 'user-check', ...categoryTone.payment, onPress: () => router.push('/payment/new') },
         ]}
       />
     </>
@@ -64,8 +64,18 @@ export default function TabsLayout() {
         name="finance"
         options={{ title: 'Kasa', tabBarIcon: icon('credit-card'), headerRight: () => <FinanceCreateButton /> }}
       />
-      <Tabs.Screen name="report" options={{ title: 'Rapor', tabBarIcon: icon('bar-chart-2') }} />
-      <Tabs.Screen name="settings" options={{ title: 'Hesap', tabBarIcon: icon('user') }} />
+      <Tabs.Screen
+        name="report"
+        options={{
+          title: 'Özet',
+          tabBarIcon: icon('pie-chart'),
+          headerRight: () => (
+            <View style={{ marginRight: 16 }}>
+              <IconButton icon="user" onPress={() => router.push('/settings')} accessibilityLabel="Hesap" />
+            </View>
+          ),
+        }}
+      />
     </Tabs>
   );
 }

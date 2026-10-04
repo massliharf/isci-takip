@@ -1,107 +1,101 @@
-import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { ExportMenu } from '../../components/ExportMenu';
+import { useToast } from '../../components/Toast';
 import {
   Card,
   currentYearMonth,
   Divider,
+  EmptyState,
   ErrorText,
   Hint,
   IconBox,
+  Kpi,
+  KpiRow,
+  ListCard,
+  ListRow,
   Loading,
+  moneyTone,
   MonthStepper,
   Screen,
   Section,
-  Text,
+  Segmented,
+  Stat,
   type IconName,
 } from '../../components/ui';
 import { deleteExpense, deleteIncome, deletePayment, listExpenses, listIncomes, listPayments, listWorkers } from '../../lib/api';
+import { safeFileName } from '../../lib/csv';
+import { confirmAction, errorMessage } from '../../lib/dialog';
+import { cashCsv, monthLabel } from '../../lib/documents';
+import { exportCsv } from '../../lib/export';
 import { formatDate, formatMoney, monthRange } from '../../lib/format';
 import { PAYMENT_LABELS } from '../../lib/types';
-import { confirmAction, errorMessage, showMessage } from '../../lib/dialog';
 import { useFocusData } from '../../lib/useAsync';
-import { categoryTone, palette, space } from '../../theme/tokens';
+import { categoryTone, space } from '../../theme/tokens';
 
-type Entry = { id: string; title: string; sub: string; amount: number; onDelete: () => Promise<void> };
+type Kind = 'income' | 'payment' | 'expense';
+type Filter = 'all' | Kind;
 
-function EntryList({
-  label,
-  entries,
-  icon,
-  tone,
-  sign,
-  onDelete,
-}: {
-  label: string;
-  entries: Entry[];
-  icon: IconName;
-  tone: { color: string; soft: string };
-  sign: '+' | '−';
-  onDelete: (e: Entry) => void;
-}) {
-  const total = entries.reduce((t, e) => t + e.amount, 0);
-  return (
-    <Section
-      label={label}
-      right={
-        <Text variant="caption" weight="semibold" tone="secondary">
-          {formatMoney(total)}
-        </Text>
-      }
-    >
-      {entries.length === 0 ? (
-        <Card>
-          <Text variant="caption" tone="tertiary" align="center">
-            Bu ay kayıt yok
-          </Text>
-        </Card>
-      ) : (
-        <Card padded={false}>
-          {entries.map((e, i) => (
-            <View key={e.id}>
-              {i > 0 && <Divider inset={space.lg + 40 + space.md} />}
-              <Pressable
-                onLongPress={() => onDelete(e)}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: space.md,
-                  padding: space.lg,
-                  backgroundColor: pressed ? palette.controlActive : 'transparent',
-                })}
-              >
-                <IconBox icon={icon} {...tone} />
-                <View style={{ flex: 1 }}>
-                  <Text variant="ui" numberOfLines={1}>
-                    {e.title}
-                  </Text>
-                  <Text variant="caption" tone="secondary" numberOfLines={1}>
-                    {e.sub}
-                  </Text>
-                </View>
-                <Text variant="ui" weight="semibold">
-                  {sign} {formatMoney(e.amount)}
-                </Text>
-              </Pressable>
-            </View>
-          ))}
-        </Card>
-      )}
-    </Section>
-  );
-}
+type Entry = {
+  id: string;
+  kind: Kind;
+  date: string;
+  title: string;
+  sub: string;
+  amount: number;
+  remove: () => Promise<void>;
+};
+
+const KIND: Record<Kind, { icon: IconName; tone: { color: string; soft: string }; sign: '+' | '−' }> = {
+  income: { icon: 'arrow-down-left', tone: categoryTone.income, sign: '+' },
+  payment: { icon: 'user-check', tone: categoryTone.payment, sign: '−' },
+  expense: { icon: 'arrow-up-right', tone: categoryTone.expense, sign: '−' },
+};
 
 export default function FinanceScreen() {
   const [ym, setYm] = useState(currentYearMonth());
+  const [filter, setFilter] = useState<Filter>('all');
+  const toast = useToast();
   const { start, end } = monthRange(ym.year, ym.month);
   const { data, error, loading, reload } = useFocusData(async () => {
-    const [incomes, expenses, payments, workers] = await Promise.all([
-      listIncomes(start, end),
-      listExpenses(start, end),
-      listPayments(start, end),
-      listWorkers(),
-    ]);
+    const [incomes, expenses, payments, workers] = await Promise.all([listIncomes(start, end), listExpenses(start, end), listPayments(start, end), listWorkers()]);
     return { incomes, expenses, payments, workers };
   }, start);
+
+  const workerName = useMemo(() => {
+    const m = new Map(data?.workers.map((w) => [w.id, w.full_name]));
+    return (id: string) => m.get(id) ?? 'Silinmiş işçi';
+  }, [data]);
+
+  const entries = useMemo<Entry[]>(() => {
+    if (!data) return [];
+    return [
+      ...data.incomes.map((i) => ({ id: i.id, kind: 'income' as const, date: i.income_date, title: i.description || 'Gelir', sub: 'Gelir', amount: i.amount, remove: () => deleteIncome(i.id) })),
+      ...data.payments.map((p) => ({
+        id: p.id,
+        kind: 'payment' as const,
+        date: p.pay_date,
+        title: workerName(p.worker_id),
+        sub: `${PAYMENT_LABELS[p.kind]}${p.note ? ` · ${p.note}` : ''}`,
+        amount: p.amount,
+        remove: () => deletePayment(p.id),
+      })),
+      ...data.expenses.map((e) => ({ id: e.id, kind: 'expense' as const, date: e.expense_date, title: e.description || 'Gider', sub: 'Gider', amount: e.amount, remove: () => deleteExpense(e.id) })),
+    ].sort((a, b) => b.date.localeCompare(a.date));
+  }, [data, workerName]);
+
+  const sum = (k: Kind) => entries.filter((e) => e.kind === k).reduce((t, e) => t + e.amount, 0);
+  const income = sum('income');
+  const paid = sum('payment');
+  const expense = sum('expense');
+  const net = income - paid - expense;
+
+  // Günlere göre grupla: hangi gün ne olduğu tek bakışta görünsün
+  const groups = useMemo(() => {
+    const shown = entries.filter((e) => filter === 'all' || e.kind === filter);
+    const m = new Map<string, Entry[]>();
+    for (const e of shown) m.set(e.date, [...(m.get(e.date) ?? []), e]);
+    return [...m.entries()];
+  }, [entries, filter]);
 
   function confirmDelete(e: Entry) {
     confirmAction({
@@ -109,64 +103,79 @@ export default function FinanceScreen() {
       message: `${e.title} · ${formatMoney(e.amount)} silinsin mi?`,
       confirmText: 'Sil',
       onConfirm: async () => {
-        await e.onDelete().catch((err) => showMessage('Silinemedi', errorMessage(err)));
-        reload();
+        try {
+          await e.remove();
+          toast('Kayıt silindi');
+          reload();
+        } catch (err) {
+          toast(`Silinemedi: ${errorMessage(err)}`, 'error');
+        }
       },
     });
   }
 
-  const workerName = (id: string) => data?.workers.find((w) => w.id === id)?.full_name ?? '?';
-
   return (
-    <Screen>
+    <Screen onRefresh={reload} refreshing={loading && !!data}>
       <MonthStepper value={ym} onChange={setYm} />
       <ErrorText>{error}</ErrorText>
       {loading && !data && <Loading />}
       {data && (
         <>
-          <EntryList
-            label="Gelirler"
-            icon="arrow-down-left"
-            tone={categoryTone.income}
-            sign="+"
-            onDelete={confirmDelete}
-            entries={data.incomes.map((i) => ({
-              id: i.id,
-              title: i.description || 'Gelir',
-              sub: formatDate(i.income_date),
-              amount: Number(i.amount),
-              onDelete: () => deleteIncome(i.id),
-            }))}
+          <Card style={{ gap: space.md }}>
+            <Stat label="Kasa net" value={formatMoney(net)} tone={moneyTone(net)} caption="Bu ay giren − çıkan para" />
+            <Divider />
+            <KpiRow>
+              <Kpi label="Giren" value={formatMoney(income)} tone="positive" />
+              <Kpi label="İşçilere" value={formatMoney(paid)} />
+              <Kpi label="Gider" value={formatMoney(expense)} />
+            </KpiRow>
+          </Card>
+
+          <Segmented<Filter>
+            options={[
+              { value: 'all', label: 'Tümü' },
+              { value: 'income', label: 'Gelir' },
+              { value: 'payment', label: 'İşçi' },
+              { value: 'expense', label: 'Gider' },
+            ]}
+            value={filter}
+            onChange={setFilter}
           />
-          <EntryList
-            label="İşçilere verilen"
-            icon="user-check"
-            tone={categoryTone.payment}
-            sign="−"
-            onDelete={confirmDelete}
-            entries={data.payments.map((p) => ({
-              id: p.id,
-              title: workerName(p.worker_id),
-              sub: `${formatDate(p.pay_date)} · ${PAYMENT_LABELS[p.kind]}${p.note ? ` · ${p.note}` : ''}`,
-              amount: Number(p.amount),
-              onDelete: () => deletePayment(p.id),
-            }))}
+
+          {groups.length === 0 ? (
+            <EmptyState icon="inbox" title="Bu ay kayıt yok" description="Sağ üstteki + ile gelir, gider veya avans ekle." />
+          ) : (
+            groups.map(([date, items]) => (
+              <Section key={date} label={formatDate(date)}>
+                <ListCard>
+                  {items.map((e) => (
+                    <ListRow
+                      key={e.id}
+                      leading={<IconBox icon={KIND[e.kind].icon} {...KIND[e.kind].tone} />}
+                      title={e.title}
+                      subtitle={e.sub}
+                      value={`${KIND[e.kind].sign} ${formatMoney(e.amount)}`}
+                      valueTone={e.kind === 'income' ? 'positive' : 'primary'}
+                      onLongPress={() => confirmDelete(e)}
+                    />
+                  ))}
+                </ListCard>
+              </Section>
+            ))
+          )}
+          {entries.length > 0 && <Hint>Silmek için kayda basılı tut.</Hint>}
+          <ExportMenu
+            title={`${monthLabel(ym.year, ym.month)} kasa`}
+            options={[
+              {
+                label: 'Excel — kasa dökümü',
+                subtitle: 'Tarih sıralı tüm gelir, gider ve ödemeler',
+                icon: 'grid',
+                kind: 'excel',
+                run: () => exportCsv(safeFileName(`Kasa ${monthLabel(ym.year, ym.month)}`), cashCsv(data.incomes, data.payments, data.expenses, workerName)),
+              },
+            ]}
           />
-          <EntryList
-            label="Diğer giderler"
-            icon="arrow-up-right"
-            tone={categoryTone.expense}
-            sign="−"
-            onDelete={confirmDelete}
-            entries={data.expenses.map((e) => ({
-              id: e.id,
-              title: e.description || 'Gider',
-              sub: formatDate(e.expense_date),
-              amount: Number(e.amount),
-              onDelete: () => deleteExpense(e.id),
-            }))}
-          />
-          <Hint>Yeni kayıt için sağ üstteki + butonunu kullan. Silmek için kayda basılı tut.</Hint>
         </>
       )}
     </Screen>

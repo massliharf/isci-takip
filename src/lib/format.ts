@@ -3,11 +3,12 @@ export const MONTHS = [
   'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
 ];
 
+/** 1250 → "1.250 ₺", 1250.5 → "1.250,50 ₺". ₺ işareti satır sonunda tek başına kalmaz. */
 export function formatMoney(n: number): string {
   const sign = n < 0 ? '-' : '';
   const [int, dec] = Math.abs(n).toFixed(2).split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `${sign}${grouped},${dec} ₺`;
+  return `${sign}${grouped}${dec === '00' ? '' : `,${dec}`}\u00A0₺`;
 }
 
 /** 30.5 → "30,5" */

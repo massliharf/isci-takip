@@ -109,10 +109,23 @@ Her zaman `Text` bileşeni kullanılır (`react-native`'in `Text`'i değil); fon
 | `ActionMenu` | Alttan açılan oluştur menüsü |
 | `EmptyState` | İkon + başlık + tek satır açıklama + isteğe bağlı aksiyon |
 | `ErrorText` | Açık kırmızı zeminli uyarı satırı |
+| `Kpi` / `KpiRow` | Küçük rakam kutuları, yan yana (2–3 adet) |
+| `ListRow` / `ListCard` | Avatar/ikon + başlık + alt satır + sağda değer; kart içinde ayırıcılı liste |
+| `Avatar` | Baş harfler; renk isimden türetilir, aynı kişi her ekranda aynı renkte |
+| `Progress` | İnce ilerleme çubuğu (günün puantaj doluluğu) |
+| `QuickChips` | Hızlı seçim (tutar, açıklama önerileri) |
+| `SearchField` | Beyaz zeminli arama kutusu |
+| `WeekStrip` | Haftalık gün şeridi; nokta = günün puantaj durumu |
+| `ExportMenu` | "Dışa aktar" butonu + biçim seçimi (PDF kırmızı, Excel yeşil ikon) |
+| `ToastProvider` / `useToast` | Altta kısa süreli onay/hata bildirimi |
 
 İkonlar: Feather (`@expo/vector-icons/Feather`), çizgi stili; 16 (küçük buton), 18 (buton, menü), 22 (tab bar).
 
-## 7. Ekran kalıpları
+## 7. Bilgi hiyerarşisi
+Her ekran aynı sırayı izler: **(1) ana rakam** (`Stat`) → **(2) birincil aksiyon** → **(3) destekleyici rakamlar** (`KpiRow`) → **(4) liste** → **(5) dışa aktarma** en altta.
+Tutarlar tam sayıysa kuruşsuz gösterilir (`1.500 ₺`), `₺` satır sonunda tek kalmaz.
+
+## 8. Ekran kalıpları
 - **Başlık:** Ekran zemininde, gölgesiz; sekme ekranlarında sola dayalı 20 px başlık, sağda en fazla bir aksiyon.
 - **Ana rakam önce:** Her sekme bir `Stat` kartıyla başlar (günlük işçilik, kalan borç, net kalan).
 - **Liste:** Tek kart içinde ayırıcılı satırlar; satır basılınca `controlActive` zemin; silme uzun basma ile.

@@ -5,19 +5,35 @@ iOS ve Android için **Expo (React Native)**, veritabanı ve üyelik için **Sup
 
 ## Özellikler
 
-| Modül | Ne yapar |
+Uygulama 4 sekmeden oluşur. Hesap ayarları Özet ekranının sağ üstündedir.
+
+| Ekran | Ne yapar |
 |---|---|
-| **Üyelik** | E-posta + şifre ile üye ol / giriş / şifre sıfırlama (Supabase Auth). Her kullanıcı kendi işletmesinin verisini görür (RLS). |
-| **İşçiler** | İşçi ekle/düzenle/sil, günlük yevmiye, telefon, başlama tarihi, not, aktif/pasif. |
-| **Puantaj** | Günü seç → her işçi için tek dokunuşla *Tam / Yarım / İzinli / Gelmedi*. “Kalan herkese tam gün” toplu butonu. O günün yevmiyesi kayda kopyalanır; yevmiye sonradan değişse de geçmiş bozulmaz. |
-| **Avans / Ödeme** | İşçiye verilen avans ve maaş ödemeleri. |
-| **İşçi detayı** | Tüm zamanların alacağı (hak edilen − verilen), aylık özet, renkli puantaj takvimi, ay içindeki ödemeler. |
-| **Kasa** | İşletme gelirleri (hakediş vb.), diğer giderler (malzeme vb.), işçilere verilenler – ay ay. |
-| **Aylık rapor** | Toplam gelir, işçilik gideri, diğer giderler, **net kalan**; işçi işçi gün sayıları ve tutarlar. PDF olarak paylaş (WhatsApp, e-posta…). |
+| **Puantaj** | Haftalık gün şeridi; her günün altındaki nokta o günün tamam olup olmadığını gösterir. Her işçi için tek dokunuşla *Tam / Yarım / İzinli / Yok*. Kayıt anında görünür, sunucu hatasında geri alınır. "Kalanlara tam gün yaz" toplu butonu ve günlük işçilik toplamı. |
+| **İşçiler** | Ödenecek toplam, fazla ödenen, aktif/pasif sayısı. Arama, filtre (aktif / bakiyesi olan / tümü) ve bakiyeye ya da isme göre sıralama. |
+| **İşçi kartı** | Toplam alacak; arama ve WhatsApp butonları; *Avans ver* ve *Hesap kapat* (kalan alacağı öder). **Aylık** görünüm: devreden, hak edilen, verilen, ay sonu bakiye, dokunarak düzeltilebilen puantaj takvimi, ödemeler. **Tüm geçmiş**: ay ay gün, hak edilen, verilen ve kümülatif bakiye. |
+| **Avans / ödeme** | İşçinin güncel alacağını gösterir. Hızlı tutar çipleri (500 / 1.000 / … / tüm alacak) ve kayıttan sonraki bakiye önizlemesi. |
+| **Kasa** | Ayın kasa neti; giren, işçilere verilen ve gider toplamları. Tarihe göre gruplanmış tek liste, türe göre filtre. Gelir ve gider için hazır açıklamalar. |
+| **Özet** | Net kalan (gelir − işçilik − gider), işçilerin ay başı ve ay sonu bakiyesi, kasa neti, puantaj istatistikleri, işçi bazında döküm. |
+| **Hesap** | Ad ve işletme adı (raporların başlığında görünür), tüm verileri dışa aktarma, çıkış. |
+
+### Dışa aktarma
+| Nereden | Biçim | İçerik |
+|---|---|---|
+| İşçi kartı → Aylık | PDF | **Hesap ekstresi**: gün gün puantaj, avans/ödemeler, devreden → kalan alacak. İşçiye WhatsApp'tan gönderilebilir. |
+| İşçi kartı → Aylık | Excel | O ayın tüm hareketleri |
+| İşçi kartı → Tüm geçmiş | PDF / Excel | Ay ay özet; Excel'de ayrıca gün gün tüm hareketler |
+| Özet | PDF / Excel | Aylık rapor, **puantaj cetveli** (işçi × gün tablosu) |
+| Kasa | Excel | Ayın tarih sıralı kasa dökümü |
+| Hesap | Excel / JSON | Tüm puantaj, tüm ödemeler, tam yedek |
+
+Excel dosyaları Türkçe Excel'in doğrudan açtığı biçimde (`;` ayraçlı, UTF-8) CSV olarak üretilir. Web'de PDF, tarayıcının yazdırma penceresinden "PDF olarak kaydet" ile alınır.
 
 ### Hesaplama kuralları
 - Tam gün = 1 yevmiye, yarım gün = 0,5 yevmiye, izinli ve gelmedi = 0.
 - İşçi alacağı = Σ hak edilen yevmiye − Σ (avans + ödeme). Negatifse işçiye fazla ödenmiştir.
+- **Devreden** = ay başına kadarki bakiye; **ay sonu bakiye** = devreden + bu ay hak edilen − bu ay verilen.
+- Takvimden geçmiş bir günün durumu değiştirilirse o günün kayıtlı yevmiyesi korunur.
 - Aylık **net kalan** = gelir − işçilik gideri (hak edilen) − diğer giderler.
 - **Kasa net** = gelir − işçilere fiilen verilen − diğer giderler.
 

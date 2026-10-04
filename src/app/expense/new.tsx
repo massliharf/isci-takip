@@ -8,6 +8,8 @@ export default function NewExpense() {
     <Screen>
       <MoneyEntryForm
         descriptionLabel="Açıklama (ör. malzeme, nakliye)"
+        descriptionPresets={['Malzeme', 'Nakliye', 'Yemek', 'Yakıt', 'Alet / ekipman']}
+        successLabel="Gider kaydedildi"
         onSubmit={async ({ date, amount, description }) => {
           await createExpense({ expense_date: date, amount, description });
           router.back();
