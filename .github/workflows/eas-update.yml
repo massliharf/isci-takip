@@ -1,0 +1,46 @@
+name: Expo'ya yayınla (EAS Update)
+
+# Her push'ta uygulamanın JS sürümü Expo'ya "production" dalı olarak yüklenir.
+# Gerekli: GitHub → Settings → Secrets and variables → Actions → EXPO_TOKEN
+# (expo.dev → Account settings → Access tokens'dan alınır). Tanımlı değilse iş atlanır.
+
+on:
+  push:
+    branches: [claude/construction-worker-tracking-app-pknd8l, main]
+  workflow_dispatch:
+
+concurrency:
+  group: eas-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: EXPO_TOKEN kontrolü
+        if: env.EXPO_TOKEN == ''
+        run: echo "::warning::EXPO_TOKEN tanımlı değil; Expo'ya yayın atlandı. README'deki adımlara bakın."
+      - uses: actions/checkout@v4
+        if: env.EXPO_TOKEN != ''
+      - uses: actions/setup-node@v4
+        if: env.EXPO_TOKEN != ''
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        if: env.EXPO_TOKEN != ''
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+        if: env.EXPO_TOKEN != ''
+      - run: npx tsc --noEmit && npm test
+        if: env.EXPO_TOKEN != ''
+      # Projeyi hesaptaki "isci-takip" projesine bağlar (yoksa oluşturur)
+      - run: eas init --non-interactive --force
+        if: env.EXPO_TOKEN != ''
+      - name: Yayınla
+        if: env.EXPO_TOKEN != ''
+        run: eas update --branch production --platform all --non-interactive --message "$(git log -1 --pretty=%s)"

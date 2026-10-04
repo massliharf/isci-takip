@@ -64,7 +64,16 @@ npx eas-cli@latest build --platform android
 Her push'ta `.github/workflows/pages.yml` web sürümünü derleyip **https://massliharf.github.io/isci-takip/** adresine yayınlar.
 İlk kurulumda bir kez: GitHub → **Settings → Pages → Source: GitHub Actions**.
 
-### 5. Web (EAS Hosting) — alternatif
+### 5. Expo'ya yayın (EAS Update) — otomatik
+Her push'ta `.github/workflows/eas-update.yml` uygulamayı Expo hesabına `production` dalı olarak yükler.
+İlk kurulumda bir kez:
+1. expo.dev → **Account settings → Access tokens → Create token**.
+2. GitHub → **Settings → Secrets and variables → Actions → New repository secret**: adı `EXPO_TOKEN`, değeri bu token.
+3. GitHub → **Actions → "Expo'ya yayınla" → Run workflow** (veya bir push).
+
+Yayın expo.dev'de **Projects → isci-takip → Updates** altında görünür.
+
+### 6. Web (EAS Hosting) — alternatif
 ```bash
 npx eas-cli@latest login     # ilk sefer
 npm run deploy:web           # dist/ klasörünü oluşturur ve yayınlar → https://<ad>.expo.app
