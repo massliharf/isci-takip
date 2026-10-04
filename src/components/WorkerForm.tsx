@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Switch, Text, View } from 'react-native';
+import { Switch, View } from 'react-native';
 import type { WorkerInput } from '../lib/api';
 import { isValidISODate, parseMoney, toISODate } from '../lib/format';
-import { Button, Card, ErrorText, Field, Muted } from './ui';
+import { palette, space } from '../theme/tokens';
+import { Button, Card, ErrorText, Field, FormStack, Hint, Text } from './ui';
 
 export function WorkerForm({
   initial,
@@ -45,24 +46,28 @@ export function WorkerForm({
   }
 
   return (
-    <Card>
-      <Field label="Ad Soyad" value={fullName} onChangeText={setFullName} />
-      <Field label="Günlük yevmiye (₺)" value={wage} onChangeText={setWage} keyboardType="decimal-pad" placeholder="Örn. 1500" />
-      <Field label="Telefon" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-      <Field label="İşe başlama tarihi (YYYY-AA-GG)" value={startDate} onChangeText={setStartDate} />
-      <Field label="Not" value={notes} onChangeText={setNotes} multiline />
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <View>
-          <Text style={{ fontSize: 16 }}>Aktif çalışıyor</Text>
-          <Muted>Pasif işçiler puantaj listesinde görünmez</Muted>
+    <>
+      <Card>
+        <FormStack>
+          <Field label="Ad soyad" value={fullName} onChangeText={setFullName} />
+          <Field label="Günlük yevmiye (₺)" value={wage} onChangeText={setWage} keyboardType="decimal-pad" placeholder="Örn. 1500" />
+          {initial?.daily_wage != null && <Hint>Yevmiye değişikliği yalnızca bundan sonra girilecek puantajlara uygulanır.</Hint>}
+          <Field label="Telefon" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+          <Field label="İşe başlama tarihi" value={startDate} onChangeText={setStartDate} placeholder="YYYY-AA-GG" />
+          <Field label="Not" value={notes} onChangeText={setNotes} multiline />
+        </FormStack>
+      </Card>
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+        <View style={{ flex: 1 }}>
+          <Text variant="title">Aktif çalışıyor</Text>
+          <Text variant="caption" tone="secondary">
+            Pasif işçiler puantaj listesinde görünmez
+          </Text>
         </View>
-        <Switch value={active} onValueChange={setActive} />
-      </View>
-      {initial?.daily_wage != null && (
-        <Muted>Yevmiye değişikliği yalnızca bundan sonra girilecek puantajlara uygulanır.</Muted>
-      )}
+        <Switch value={active} onValueChange={setActive} trackColor={{ true: palette.focus, false: palette.track }} thumbColor={palette.surface} />
+      </Card>
       <ErrorText>{error}</ErrorText>
-      <Button title={submitLabel} onPress={submit} loading={busy} />
-    </Card>
+      <Button title={submitLabel} size="lg" onPress={submit} loading={busy} disabled={!fullName.trim() || !wage.trim()} />
+    </>
   );
 }

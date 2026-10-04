@@ -1,10 +1,11 @@
 import { Stack } from 'expo-router';
+import { stackScreenOptions } from '../../theme/navigation';
 
 export default function AuthLayout() {
   return (
-    <Stack screenOptions={{ headerBackTitle: 'Geri' }}>
-      <Stack.Screen name="login" options={{ title: 'Giriş Yap' }} />
-      <Stack.Screen name="register" options={{ title: 'Üye Ol' }} />
+    <Stack screenOptions={stackScreenOptions}>
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ title: 'Üye ol' }} />
     </Stack>
   );
 }

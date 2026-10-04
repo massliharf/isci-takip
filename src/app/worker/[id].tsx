@@ -1,19 +1,32 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
-import { Button, Card, colors, currentYearMonth, ErrorText, H1, Loading, MonthStepper, Muted, Row, Screen } from '../../components/ui';
+import { Alert, Pressable, View } from 'react-native';
+import {
+  Button,
+  Card,
+  Chip,
+  currentYearMonth,
+  Divider,
+  ErrorText,
+  Hint,
+  IconButton,
+  Loading,
+  moneyTone,
+  MonthStepper,
+  Row,
+  Screen,
+  Section,
+  Stat,
+  Text,
+} from '../../components/ui';
 import { deletePayment, getWorker, listAttendance, listPayments, listWorkerBalances } from '../../lib/api';
 import { summarizeWorker } from '../../lib/calc';
-import { formatDate, formatMoney, fromISODate, monthRange } from '../../lib/format';
-import { PAYMENT_LABELS, type AttendanceStatus, type Payment } from '../../lib/types';
+import { formatDate, formatMoney, formatNumber, fromISODate, monthRange, toISODate } from '../../lib/format';
+import { PAYMENT_LABELS, STATUS_LABELS, type AttendanceStatus, type Payment } from '../../lib/types';
 import { useFocusData } from '../../lib/useAsync';
+import { categoryTone, palette, radius, space, statusTone } from '../../theme/tokens';
 
-const STATUS_COLOR: Record<AttendanceStatus, string> = {
-  full: colors.green,
-  half: colors.blue,
-  leave: colors.amber,
-  absent: colors.red,
-};
+const WEEKDAYS = ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'];
 
 export default function WorkerDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,7 +47,7 @@ export default function WorkerDetail() {
       month: summarizeWorker(worker, attendance, payments),
       total: balances.find((b) => b.worker_id === id),
     };
-  }, [id, start]);
+  }, `${id}:${start}`);
 
   function confirmDeletePayment(p: Payment) {
     Alert.alert('Kaydı sil', `${formatDate(p.pay_date)} tarihli ${formatMoney(Number(p.amount))} silinsin mi?`, [
@@ -54,91 +67,151 @@ export default function WorkerDetail() {
   const { worker, month, total, attendance, payments } = data;
   const balance = total?.balance ?? 0;
   const daysInMonth = fromISODate(end).getDate();
+  const leadingBlanks = (fromISODate(start).getDay() + 6) % 7; // Pazartesi başlangıçlı takvim
+  const today = toISODate(new Date());
 
   return (
     <Screen>
       <Stack.Screen
         options={{
           title: worker.full_name,
-          headerRight: () => (
-            <Text style={{ color: colors.blue, fontSize: 16 }} onPress={() => router.push(`/worker/edit/${id}`)}>
-              Düzenle
-            </Text>
-          ),
+          headerRight: () => <IconButton icon="edit-2" variant="ghost" onPress={() => router.push(`/worker/edit/${id}`)} accessibilityLabel="Düzenle" />,
         }}
       />
       <ErrorText>{error}</ErrorText>
-      <Card>
-        <Muted>{balance >= 0 ? 'Toplam alacağı (tüm zamanlar)' : 'Fazla ödenen (işçinin borcu)'}</Muted>
-        <Text style={{ fontSize: 26, fontWeight: '800', color: balance >= 0 ? colors.green : colors.red }}>{formatMoney(Math.abs(balance))}</Text>
-        <Muted>
-          Hak edilen {formatMoney(total?.earned ?? 0)} − Verilen {formatMoney(total?.paid ?? 0)}
-        </Muted>
-        <Muted>
-          Güncel yevmiye: {formatMoney(Number(worker.daily_wage))}
-          {worker.phone ? ` · Tel: ${worker.phone}` : ''}
-        </Muted>
+      <Card style={{ gap: space.lg }}>
+        <Stat
+          label={balance < 0 ? 'Fazla ödenen (işçinin borcu)' : 'Toplam alacağı'}
+          value={formatMoney(Math.abs(balance))}
+          tone={moneyTone(balance)}
+          caption={`Hak edilen ${formatMoney(total?.earned ?? 0)} − verilen ${formatMoney(total?.paid ?? 0)}`}
+        />
+        <View style={{ flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' }}>
+          <Chip label={`${formatMoney(Number(worker.daily_wage))} / gün`} />
+          {worker.phone ? <Chip label={worker.phone} /> : null}
+          {!worker.active && <Chip label="Pasif" />}
+        </View>
+        <View style={{ flexDirection: 'row', gap: space.sm }}>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Avans ver"
+              icon="arrow-up-right"
+              onPress={() => router.push({ pathname: '/payment/new', params: { workerId: id, kind: 'advance' } })}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Ödeme yap"
+              icon="check-circle"
+              variant="secondary"
+              onPress={() => router.push({ pathname: '/payment/new', params: { workerId: id, kind: 'payment', suggested: String(Math.max(balance, 0)) } })}
+            />
+          </View>
+        </View>
       </Card>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={{ flex: 1 }}>
-          <Button title="Avans Ver" onPress={() => router.push({ pathname: '/payment/new', params: { workerId: id, kind: 'advance' } })} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button title="Ödeme Yap" variant="secondary" onPress={() => router.push({ pathname: '/payment/new', params: { workerId: id, kind: 'payment', suggested: String(Math.max(balance, 0)) } })} />
-        </View>
-      </View>
 
       <MonthStepper value={ym} onChange={setYm} />
       {loading && <Loading />}
-      <Card>
-        <H1>Aylık özet</H1>
-        <Row label="Tam gün" value={String(month.fullDays)} />
-        <Row label="Yarım gün" value={String(month.halfDays)} />
-        <Row label="İzinli" value={String(month.leaveDays)} />
-        <Row label="Gelmedi" value={String(month.absentDays)} />
-        <Row label="Çalışılan gün" value={String(month.workedDays)} bold />
-        <Row label="Hak edilen" value={formatMoney(month.earned)} bold />
-        <Row label="Avanslar" value={formatMoney(month.advances)} />
-        <Row label="Ödemeler" value={formatMoney(month.payments)} />
-        <Row label="Ay farkı" value={formatMoney(month.balance)} color={month.balance >= 0 ? colors.green : colors.red} bold />
-      </Card>
 
-      <Card>
-        <H1>Puantaj</H1>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {Array.from({ length: daysInMonth }, (_, i) => {
-            const day = i + 1;
-            const a = attendance.find((x) => fromISODate(x.work_date).getDate() === day);
-            return (
-              <View
-                key={day}
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 8,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: a ? STATUS_COLOR[a.status] : colors.bg,
-                }}
-              >
-                <Text style={{ color: a ? '#fff' : colors.muted, fontWeight: '600' }}>{day}</Text>
+      <Section label="Puantaj">
+        <Card style={{ gap: space.md }}>
+          <View style={styles.calendar}>
+            {WEEKDAYS.map((d) => (
+              <View key={d} style={styles.calendarCell}>
+                <Text variant="caption" tone="tertiary">
+                  {d}
+                </Text>
               </View>
-            );
-          })}
-        </View>
-        <Muted>🟩 Tam  🟦 Yarım  🟨 İzinli  🟥 Gelmedi</Muted>
-      </Card>
+            ))}
+            {Array.from({ length: leadingBlanks }, (_, i) => (
+              <View key={`b${i}`} style={styles.calendarCell} />
+            ))}
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1;
+              const a = attendance.find((x) => fromISODate(x.work_date).getDate() === day);
+              const tone = a ? statusTone[a.status] : null;
+              const isToday = toISODate(new Date(ym.year, ym.month, day)) === today;
+              return (
+                <View key={day} style={styles.calendarCell}>
+                  <View
+                    style={[
+                      styles.calendarDay,
+                      { backgroundColor: tone ? tone.soft : palette.control },
+                      isToday && { borderWidth: 1.5, borderColor: palette.textPrimary },
+                    ]}
+                  >
+                    <Text variant="caption" weight={tone ? 'semibold' : 'regular'} color={tone ? tone.ink : palette.textTertiary}>
+                      {day}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+            {(Object.keys(statusTone) as AttendanceStatus[]).map((s) => (
+              <Chip key={s} label={STATUS_LABELS[s]} tone={statusTone[s]} />
+            ))}
+          </View>
+        </Card>
+      </Section>
 
-      <Card>
-        <H1>Avans / Ödemeler</H1>
-        {payments.length === 0 && <Muted>Bu ay kayıt yok.</Muted>}
-        {payments.map((p) => (
-          <Pressable key={p.id} onLongPress={() => confirmDeletePayment(p)}>
-            <Row label={`${formatDate(p.pay_date)} · ${PAYMENT_LABELS[p.kind]}${p.note ? ` · ${p.note}` : ''}`} value={formatMoney(Number(p.amount))} />
-          </Pressable>
-        ))}
-        {payments.length > 0 && <Muted>Silmek için kayda basılı tutun.</Muted>}
-      </Card>
+      <Section label="Aylık özet">
+        <Card style={{ gap: space.xs }}>
+          <Row label="Tam gün" value={String(month.fullDays)} />
+          <Row label="Yarım gün" value={String(month.halfDays)} />
+          <Row label="İzinli" value={String(month.leaveDays)} />
+          <Row label="Gelmedi" value={String(month.absentDays)} />
+          <Divider />
+          <Row label="Çalışılan gün" value={formatNumber(month.workedDays)} strong />
+          <Row label="Hak edilen" value={formatMoney(month.earned)} strong />
+          <Row label="Avanslar" value={formatMoney(month.advances)} />
+          <Row label="Ödemeler" value={formatMoney(month.payments)} />
+          <Divider />
+          <Row label="Ay farkı" value={formatMoney(month.balance)} tone={moneyTone(month.balance)} strong />
+        </Card>
+      </Section>
+
+      <Section label="Avans ve ödemeler">
+        {payments.length === 0 ? (
+          <Card>
+            <Text variant="caption" tone="secondary" align="center">
+              Bu ay kayıt yok
+            </Text>
+          </Card>
+        ) : (
+          <Card padded={false}>
+            {payments.map((p, i) => (
+              <View key={p.id}>
+                {i > 0 && <Divider inset={space.lg} />}
+                <Pressable
+                  onLongPress={() => confirmDeletePayment(p)}
+                  style={({ pressed }) => [styles.listItem, pressed && { backgroundColor: palette.controlActive }]}
+                >
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Chip label={PAYMENT_LABELS[p.kind]} tone={{ soft: categoryTone.payment.soft, ink: categoryTone.payment.color }} />
+                    <Text variant="caption" tone="secondary" numberOfLines={1}>
+                      {formatDate(p.pay_date)}
+                      {p.note ? ` · ${p.note}` : ''}
+                    </Text>
+                  </View>
+                  <Text variant="ui" weight="semibold">
+                    {formatMoney(Number(p.amount))}
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+          </Card>
+        )}
+        {payments.length > 0 && <Hint>Silmek için kayda basılı tut.</Hint>}
+      </Section>
     </Screen>
   );
 }
+
+const styles = {
+  calendar: { flexDirection: 'row', flexWrap: 'wrap' },
+  calendarCell: { width: `${100 / 7}%`, aspectRatio: 1, padding: 2, alignItems: 'center', justifyContent: 'center' },
+  calendarDay: { width: '100%', height: '100%', borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  listItem: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg },
+} as const;

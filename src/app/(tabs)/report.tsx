@@ -1,14 +1,30 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
-import { Button, Card, colors, currentYearMonth, ErrorText, H1, Loading, MonthStepper, Muted, Row, Screen } from '../../components/ui';
+import { Alert, View } from 'react-native';
+import {
+  Button,
+  Card,
+  currentYearMonth,
+  Divider,
+  EmptyState,
+  ErrorText,
+  Loading,
+  moneyTone,
+  MonthStepper,
+  Row,
+  Screen,
+  Section,
+  Stat,
+  Text,
+} from '../../components/ui';
 import { listAttendance, listExpenses, listIncomes, listPayments, listWorkers } from '../../lib/api';
 import { buildMonthReport } from '../../lib/calc';
 import { formatMoney, MONTHS, monthRange } from '../../lib/format';
 import { buildReportHtml } from '../../lib/reportHtml';
 import { supabase } from '../../lib/supabase';
 import { useFocusData } from '../../lib/useAsync';
+import { space } from '../../theme/tokens';
 
 export default function ReportScreen() {
   const [ym, setYm] = useState(currentYearMonth());
@@ -25,7 +41,7 @@ export default function ReportScreen() {
       listExpenses(start, end),
     ]);
     return buildMonthReport(workers, attendance, payments, incomes, expenses);
-  }, [start]);
+  }, start);
 
   async function share() {
     if (!report) return;
@@ -50,32 +66,50 @@ export default function ReportScreen() {
       {loading && !report && <Loading />}
       {report && (
         <>
-          <Card>
-            <H1>Ay özeti</H1>
-            <Row label="Toplam gelir" value={formatMoney(report.totalIncome)} color={colors.green} />
-            <Row label="İşçilik gideri" value={formatMoney(report.totalLabor)} color={colors.red} />
-            <Row label="Diğer giderler" value={formatMoney(report.totalOtherExpense)} color={colors.red} />
-            <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 6 }} />
-            <Row label="Net kalan" value={formatMoney(report.net)} color={report.net >= 0 ? colors.green : colors.red} bold />
-            <View style={{ height: 8 }} />
-            <Muted>Kasa bazlı: işçilere bu ay fiilen verilen {formatMoney(report.totalPaid)} → kasa net {formatMoney(report.cashNet)}</Muted>
+          <Card style={{ gap: space.md }}>
+            <Stat label="Net kalan" value={formatMoney(report.net)} tone={moneyTone(report.net)} caption="Gelir − işçilik − diğer giderler" />
+            <Divider />
+            <View style={{ gap: space.xs }}>
+              <Row label="Toplam gelir" value={formatMoney(report.totalIncome)} tone="positive" />
+              <Row label="İşçilik gideri" value={`− ${formatMoney(report.totalLabor)}`} />
+              <Row label="Diğer giderler" value={`− ${formatMoney(report.totalOtherExpense)}`} />
+            </View>
           </Card>
-          <Card>
-            <H1>İşçi bazında</H1>
-            {report.workers.length === 0 && <Muted>Bu ay kayıt yok.</Muted>}
-            {report.workers.map((w) => (
-              <View key={w.workerId} style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                <Text style={{ fontWeight: '700', fontSize: 15 }}>{w.name}</Text>
-                <Muted>
-                  {w.fullDays} tam · {w.halfDays} yarım · {w.leaveDays} izinli · {w.absentDays} gelmedi
-                </Muted>
-                <Row label="Hak edilen" value={formatMoney(w.earned)} />
-                <Row label="Verilen (avans+ödeme)" value={formatMoney(w.paid)} />
-                <Row label="Ay farkı" value={formatMoney(w.balance)} color={w.balance >= 0 ? colors.green : colors.red} bold />
-              </View>
-            ))}
+          <Card style={{ gap: space.xs }}>
+            <Row label="İşçilere fiilen verilen" value={formatMoney(report.totalPaid)} hint="Bu ayki avans + ödemeler" />
+            <Row label="Kasa net" value={formatMoney(report.cashNet)} tone={moneyTone(report.cashNet)} strong hint="Gelir − verilen − giderler" />
           </Card>
-          <Button title="PDF olarak paylaş" onPress={share} loading={sharing} />
+
+          <Section label="İşçi bazında">
+            {report.workers.length === 0 ? (
+              <EmptyState icon="calendar" title="Bu ay kayıt yok" description="Puantaj veya ödeme girildiğinde burada görünür." />
+            ) : (
+              <Card padded={false}>
+                {report.workers.map((w, i) => (
+                  <View key={w.workerId}>
+                    {i > 0 && <Divider inset={space.lg} />}
+                    <View style={{ padding: space.lg, gap: space.xs }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                        <Text variant="title" numberOfLines={1} style={{ flexShrink: 1 }}>
+                          {w.name}
+                        </Text>
+                        <Text variant="ui" weight="semibold" tone={moneyTone(w.balance)}>
+                          {formatMoney(w.balance)}
+                        </Text>
+                      </View>
+                      <Text variant="caption" tone="secondary">
+                        {w.fullDays} tam · {w.halfDays} yarım · {w.leaveDays} izinli · {w.absentDays} gelmedi
+                      </Text>
+                      <Text variant="caption" tone="tertiary">
+                        Hak edilen {formatMoney(w.earned)} · verilen {formatMoney(w.paid)}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            )}
+          </Section>
+          <Button title="PDF olarak paylaş" icon="share" size="lg" onPress={share} loading={sharing} />
         </>
       )}
     </Screen>

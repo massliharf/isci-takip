@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildMonthReport, summarizeWorker } from './calc.ts';
-import { formatMoney, monthRange, parseMoney } from './format.ts';
+import { formatMoney, formatNumber, monthRange, parseMoney } from './format.ts';
 import type { Attendance, Payment } from './types.ts';
 
 const w = { id: 'w1', full_name: 'Ali' };
@@ -42,6 +42,7 @@ test('aylık rapor: gelir - işçilik - gider', () => {
 
 test('format yardımcıları', () => {
   assert.equal(formatMoney(1234567.5), '1.234.567,50 ₺');
+  assert.equal(formatNumber(30.5), '30,5');
   assert.equal(parseMoney('1.250,50'), 1250.5);
   assert.equal(parseMoney('1500'), 1500);
   assert.deepEqual(monthRange(2026, 1), { start: '2026-02-01', end: '2026-02-28' });

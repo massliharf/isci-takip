@@ -1,8 +1,10 @@
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text } from 'react-native';
-import { Button, Card, colors, ErrorText, Field, Muted, Screen } from '../../components/ui';
+import { Alert, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button, Card, ErrorText, Field, FormStack, IconBox, Screen, Text } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
+import { categoryTone, palette, space } from '../../theme/tokens';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -26,21 +28,28 @@ export default function Login() {
   }
 
   return (
-    <Screen>
-      <Text style={{ fontSize: 28, fontWeight: '800', color: colors.primary, marginTop: 24 }}>İşçi Takip</Text>
-      <Muted>Puantaj, yevmiye ve alacak-verecek takibi</Muted>
-      <Card>
-        <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-        <Field label="Şifre" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
-        <ErrorText>{error}</ErrorText>
-        <Button title="Giriş Yap" onPress={signIn} loading={busy} disabled={!email || !password} />
-        <Text onPress={resetPassword} style={{ color: colors.blue, textAlign: 'center', marginTop: 14 }}>
-          Şifremi unuttum
-        </Text>
-      </Card>
-      <Link href="/register" style={{ color: colors.blue, textAlign: 'center', fontSize: 16 }}>
-        Hesabın yok mu? Üye ol
-      </Link>
-    </Screen>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.bgApp }}>
+      <Screen>
+        <View style={{ alignItems: 'center', gap: space.md, marginTop: space.xxl * 2, marginBottom: space.lg }}>
+          <IconBox icon="check-square" {...categoryTone.worker} size={56} />
+          <Text variant="display" align="center">
+            İşçi Takip
+          </Text>
+          <Text variant="body" tone="secondary" align="center">
+            Puantaj, yevmiye ve alacak-verecek tek yerde
+          </Text>
+        </View>
+        <Card>
+          <FormStack>
+            <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+            <Field label="Şifre" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
+            <ErrorText>{error}</ErrorText>
+            <Button title="Giriş yap" size="lg" onPress={signIn} loading={busy} disabled={!email || !password} />
+            <Button title="Şifremi unuttum" variant="ghost" size="sm" onPress={resetPassword} />
+          </FormStack>
+        </Card>
+        <Button title="Hesabın yok mu? Üye ol" variant="secondary" onPress={() => router.push('/register')} />
+      </Screen>
+    </SafeAreaView>
   );
 }

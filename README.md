@@ -44,10 +44,15 @@ npx eas-cli@latest build --platform ios
 npx eas-cli@latest build --platform android
 ```
 
+## Tasarım
+Arayüz, `docs/design-system.md` dosyasındaki tasarım sistemine göre yapılır (renk, tipografi, bileşenler).
+Örnek ekran görüntüleri `docs/screenshots/` altında.
+
 ## Geliştirme
 ```bash
 npm run typecheck   # TypeScript
 npm test            # hesaplama birim testleri
+npx expo lint       # ESLint
 ```
 
 ## Proje yapısı
@@ -62,6 +67,8 @@ src/app/                            ekranlar (expo-router)
   (tabs)/settings                   hesap, çıkış
   worker/[id], worker/new, worker/edit/[id]
   payment/new, income/new, expense/new
+src/theme/tokens.ts                 tasarım token'ları (renk, tip, boşluk)
+src/components/ui.tsx               ortak bileşenler
 src/lib/calc.ts                     hesaplama (saf fonksiyonlar, testli)
 src/lib/api.ts                      Supabase veri erişimi
 ```

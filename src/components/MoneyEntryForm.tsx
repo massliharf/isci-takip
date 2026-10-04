@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { parseMoney, toISODate } from '../lib/format';
-import { Button, Card, DateField, ErrorText, Field } from './ui';
+import { Button, Card, DateField, ErrorText, Field, FormStack } from './ui';
 
 export function MoneyEntryForm({
   descriptionLabel,
@@ -28,12 +28,16 @@ export function MoneyEntryForm({
   }
 
   return (
-    <Card>
-      <Field label="Tutar (₺)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" autoFocus />
-      <DateField label="Tarih" value={date} onChange={setDate} />
-      <Field label={descriptionLabel} value={description} onChangeText={setDescription} />
+    <>
+      <Card>
+        <FormStack>
+          <Field label="Tutar (₺)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" autoFocus />
+          <DateField label="Tarih" value={date} onChange={setDate} />
+          <Field label={descriptionLabel} value={description} onChangeText={setDescription} />
+        </FormStack>
+      </Card>
       <ErrorText>{error}</ErrorText>
-      <Button title="Kaydet" onPress={save} loading={busy} />
-    </Card>
+      <Button title="Kaydet" size="lg" onPress={save} loading={busy} disabled={!amount.trim()} />
+    </>
   );
 }

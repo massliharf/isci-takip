@@ -1,27 +1,29 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
-import { Button, Card, colors, DateStepper, ErrorText, Loading, Muted, Screen, Segmented } from '../../components/ui';
+import { Alert, View } from 'react-native';
+import { Button, Card, DateStepper, EmptyState, ErrorText, Hint, Loading, Screen, Section, Segmented, Stat, Text } from '../../components/ui';
 import { clearAttendance, listAttendance, listWorkers, setAttendance } from '../../lib/api';
 import { attendanceEarning } from '../../lib/calc';
 import { formatMoney, toISODate } from '../../lib/format';
 import type { Attendance, AttendanceStatus, Worker } from '../../lib/types';
 import { useFocusData } from '../../lib/useAsync';
+import { space, statusTone } from '../../theme/tokens';
 
-const OPTIONS: { value: AttendanceStatus; label: string; color: string }[] = [
-  { value: 'full', label: 'Tam', color: colors.green },
-  { value: 'half', label: 'Yarım', color: colors.blue },
-  { value: 'leave', label: 'İzinli', color: colors.amber },
-  { value: 'absent', label: 'Gelmedi', color: colors.red },
+const OPTIONS: { value: AttendanceStatus; label: string; tone: (typeof statusTone)[AttendanceStatus] }[] = [
+  { value: 'full', label: 'Tam', tone: statusTone.full },
+  { value: 'half', label: 'Yarım', tone: statusTone.half },
+  { value: 'leave', label: 'İzinli', tone: statusTone.leave },
+  { value: 'absent', label: 'Yok', tone: statusTone.absent },
 ];
 
 export default function PuantajScreen() {
   const [date, setDate] = useState(toISODate(new Date()));
   const [saving, setSaving] = useState<string | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const { data, setData, error, loading } = useFocusData(async () => {
     const [workers, attendance] = await Promise.all([listWorkers(true), listAttendance(date, date)]);
     return { workers, attendance };
-  }, [date]);
+  }, date);
 
   async function mark(worker: Worker, status: AttendanceStatus) {
     if (!data) return;
@@ -48,16 +50,20 @@ export default function PuantajScreen() {
   async function markAllFull() {
     if (!data) return;
     const missing = data.workers.filter((w) => !data.attendance.some((a) => a.worker_id === w.id));
+    setBulkSaving(true);
     try {
       const saved = await Promise.all(missing.map((w) => setAttendance(w, date, 'full')));
       setData({ ...data, attendance: [...data.attendance, ...saved] });
     } catch (e) {
       Alert.alert('Kaydedilemedi', e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkSaving(false);
     }
   }
 
   const dayTotal = data?.attendance.reduce((t, a) => t + attendanceEarning(a), 0) ?? 0;
-  const unmarked = data ? data.workers.filter((w) => !data.attendance.some((a) => a.worker_id === w.id)).length : 0;
+  const marked = data?.attendance.length ?? 0;
+  const unmarked = data ? data.workers.length - data.workers.filter((w) => data.attendance.some((a) => a.worker_id === w.id)).length : 0;
 
   return (
     <Screen>
@@ -66,36 +72,40 @@ export default function PuantajScreen() {
       {loading && !data ? (
         <Loading />
       ) : data && data.workers.length === 0 ? (
-        <Card>
-          <Muted>Henüz aktif işçi yok.</Muted>
-          <View style={{ height: 10 }} />
-          <Button title="İşçi Ekle" onPress={() => router.push('/worker/new')} />
-        </Card>
+        <EmptyState
+          icon="users"
+          title="Henüz işçi yok"
+          description="Puantaj tutmak için önce işçilerini ekle."
+          action={<Button title="İşçi ekle" icon="plus" onPress={() => router.push('/worker/new')} />}
+        />
       ) : (
         data && (
           <>
-            <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Muted>Günlük işçilik</Muted>
-                <Text style={{ fontSize: 20, fontWeight: '700' }}>{formatMoney(dayTotal)}</Text>
-              </View>
-              {unmarked > 0 && <Button small title={`Kalan ${unmarked} kişi: Tam gün`} onPress={markAllFull} />}
+            <Card style={{ gap: space.md }}>
+              <Stat label="Günlük işçilik" value={formatMoney(dayTotal)} caption={`${marked} / ${data.workers.length} işçi işaretlendi`} />
+              {unmarked > 0 && (
+                <Button title={`Kalan ${unmarked} kişiye tam gün yaz`} icon="check" variant="secondary" size="sm" onPress={markAllFull} loading={bulkSaving} />
+              )}
             </Card>
-            {data.workers.map((w) => {
-              const a = data.attendance.find((x) => x.worker_id === w.id);
-              return (
-                <Card key={w.id}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700' }} onPress={() => router.push(`/worker/${w.id}`)}>
-                      {w.full_name}
-                    </Text>
-                    <Muted>{saving === w.id ? 'Kaydediliyor…' : `${formatMoney(Number(w.daily_wage))}/gün`}</Muted>
-                  </View>
-                  <Segmented options={OPTIONS} value={a?.status ?? null} onChange={(s) => mark(w, s)} />
-                </Card>
-              );
-            })}
-            <Muted>İpucu: Seçili duruma tekrar dokunursanız o günün kaydı silinir.</Muted>
+            <Section label="İşçiler">
+              {data.workers.map((w) => {
+                const a = data.attendance.find((x) => x.worker_id === w.id);
+                return (
+                  <Card key={w.id} style={{ gap: space.md }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text variant="title" onPress={() => router.push(`/worker/${w.id}`)} numberOfLines={1} style={{ flexShrink: 1 }}>
+                        {w.full_name}
+                      </Text>
+                      <Text variant="caption" tone="tertiary">
+                        {saving === w.id ? 'Kaydediliyor…' : a ? formatMoney(attendanceEarning(a)) : `${formatMoney(Number(w.daily_wage))} / gün`}
+                      </Text>
+                    </View>
+                    <Segmented options={OPTIONS} value={a?.status ?? null} onChange={(s) => mark(w, s)} />
+                  </Card>
+                );
+              })}
+            </Section>
+            <Hint>Seçili duruma tekrar dokunursan o günün kaydı silinir.</Hint>
           </>
         )
       )}

@@ -1,13 +1,18 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
-/** Ekran her odaklandığında ve deps değiştiğinde veriyi yeniden yükler */
-export function useFocusData<T>(loader: () => Promise<T>, deps: unknown[]) {
+/**
+ * Ekran her odaklandığında ve `key` değiştiğinde veriyi yeniden yükler.
+ * `key`, loader'ın bağlı olduğu değerlerden oluşan bir metindir (ör. seçili tarih).
+ */
+export function useFocusData<T>(loader: () => Promise<T>, key: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const loaderRef = useRef(loader);
-  loaderRef.current = loader;
+  useLayoutEffect(() => {
+    loaderRef.current = loader;
+  });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -22,10 +27,11 @@ export function useFocusData<T>(loader: () => Promise<T>, deps: unknown[]) {
   }, []);
 
   useFocusEffect(
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     useCallback(() => {
       reload();
-    }, deps),
+      // key, loader'ın girdileri değiştiğinde yeniden yüklemeyi tetikler
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reload, key]),
   );
 
   return { data, setData, error, loading, reload };

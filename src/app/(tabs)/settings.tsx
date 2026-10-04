@@ -1,7 +1,8 @@
-import { Alert, Text } from 'react-native';
-import { Button, Card, Muted, Screen } from '../../components/ui';
+import { Alert, View } from 'react-native';
+import { Button, Card, IconBox, Screen, Text } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { supabase } from '../../lib/supabase';
+import { categoryTone, space } from '../../theme/tokens';
 
 export default function SettingsScreen() {
   const { session } = useAuth();
@@ -9,18 +10,28 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <Card>
-        <Text style={{ fontSize: 18, fontWeight: '700' }}>{meta.full_name || 'Kullanıcı'}</Text>
-        {meta.business_name ? <Muted>{meta.business_name}</Muted> : null}
-        <Muted>{session?.user.email}</Muted>
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+        <IconBox icon="user" {...categoryTone.worker} size={48} />
+        <View style={{ flex: 1 }}>
+          <Text variant="title">{meta.full_name || 'Kullanıcı'}</Text>
+          {meta.business_name ? (
+            <Text variant="caption" tone="secondary">
+              {meta.business_name}
+            </Text>
+          ) : null}
+          <Text variant="caption" tone="tertiary">
+            {session?.user.email}
+          </Text>
+        </View>
       </Card>
       <Button
-        title="Çıkış Yap"
+        title="Çıkış yap"
+        icon="log-out"
         variant="danger"
         onPress={() =>
           Alert.alert('Çıkış', 'Hesabınızdan çıkış yapılsın mı?', [
             { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Çıkış Yap', style: 'destructive', onPress: () => supabase.auth.signOut() },
+            { text: 'Çıkış yap', style: 'destructive', onPress: () => supabase.auth.signOut() },
           ])
         }
       />

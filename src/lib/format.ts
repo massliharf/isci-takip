@@ -10,6 +10,11 @@ export function formatMoney(n: number): string {
   return `${sign}${grouped},${dec} ₺`;
 }
 
+/** 30.5 → "30,5" */
+export function formatNumber(n: number): string {
+  return String(Math.round(n * 100) / 100).replace('.', ',');
+}
+
 export function parseMoney(text: string): number {
   // "1.250,50" veya "1250.50" kabul et
   const t = text.trim().replace(/\s|₺/g, '');

@@ -7,7 +7,7 @@ import { useFocusData } from '../../../lib/useAsync';
 
 export default function EditWorker() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: worker, error } = useFocusData(() => getWorker(id), [id]);
+  const { data: worker, error } = useFocusData(() => getWorker(id), id);
 
   function confirmDelete() {
     Alert.alert('İşçiyi sil', 'İşçiye ait tüm puantaj ve ödeme kayıtları da silinecek. Emin misiniz?', [
@@ -36,13 +36,13 @@ export default function EditWorker() {
         <>
           <WorkerForm
             initial={worker}
-            submitLabel="Güncelle"
+            submitLabel="Kaydet"
             onSubmit={async (input) => {
               await updateWorker(id, input);
               router.back();
             }}
           />
-          <Button title="İşçiyi Sil" variant="danger" onPress={confirmDelete} />
+          <Button title="İşçiyi sil" icon="trash-2" variant="danger" onPress={confirmDelete} />
         </>
       )}
     </Screen>

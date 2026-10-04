@@ -1,10 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Button, Card, DateField, ErrorText, Field, Loading, Muted, Screen, Segmented } from '../../components/ui';
+import { Pressable, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { Button, Card, DateField, Divider, ErrorText, Field, FormStack, Loading, Screen, Section, Segmented, Text } from '../../components/ui';
 import { createPayment, listWorkers } from '../../lib/api';
 import { formatMoney, parseMoney, toISODate } from '../../lib/format';
 import { PAYMENT_LABELS, type PaymentKind } from '../../lib/types';
 import { useFocusData } from '../../lib/useAsync';
+import { palette, space } from '../../theme/tokens';
 
 export default function NewPayment() {
   const params = useLocalSearchParams<{ workerId?: string; kind?: PaymentKind; suggested?: string }>();
@@ -15,7 +18,7 @@ export default function NewPayment() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { data: workers } = useFocusData(() => listWorkers(true), []);
+  const { data: workers } = useFocusData(() => listWorkers(true), 'active-workers');
 
   async function save() {
     const value = parseMoney(amount);
@@ -35,32 +38,58 @@ export default function NewPayment() {
 
   return (
     <Screen>
-      {!params.workerId && (
-        <Card>
-          <Muted>İşçi</Muted>
+      {params.workerId ? (
+        selected && (
+          <Text variant="heading">
+            {selected.full_name}
+          </Text>
+        )
+      ) : (
+        <Section label="İşçi">
           {!workers ? (
             <Loading />
           ) : (
-            workers.map((w) => (
-              <Button key={w.id} small title={w.full_name} variant={w.id === workerId ? 'primary' : 'secondary'} onPress={() => setWorkerId(w.id)} />
-            ))
+            <Card padded={false}>
+              {workers.map((w, i) => (
+                <View key={w.id}>
+                  {i > 0 && <Divider inset={space.lg} />}
+                  <Pressable
+                    onPress={() => setWorkerId(w.id)}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: space.lg,
+                      gap: space.md,
+                      backgroundColor: pressed ? palette.controlActive : 'transparent',
+                    })}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text variant="title">{w.full_name}</Text>
+                      <Text variant="caption" tone="secondary">
+                        {formatMoney(Number(w.daily_wage))} / gün
+                      </Text>
+                    </View>
+                    <Feather name={w.id === workerId ? 'check-circle' : 'circle'} size={20} color={w.id === workerId ? palette.textPrimary : palette.borderStrong} />
+                  </Pressable>
+                </View>
+              ))}
+            </Card>
           )}
-        </Card>
+        </Section>
       )}
       <Card>
-        {selected && <Muted>{selected.full_name} · Yevmiye {formatMoney(Number(selected.daily_wage))}</Muted>}
-        <Segmented
-          options={(['advance', 'payment'] as const).map((k) => ({ value: k, label: PAYMENT_LABELS[k] }))}
-          value={kind}
-          onChange={setKind}
-        />
-        <Muted>{kind === 'advance' ? 'Ay içinde verilen avans' : 'Hakediş / maaş ödemesi'}</Muted>
-        <Field label="Tutar (₺)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" autoFocus />
-        <DateField label="Tarih" value={date} onChange={setDate} />
-        <Field label="Not" value={note} onChangeText={setNote} />
-        <ErrorText>{error}</ErrorText>
-        <Button title="Kaydet" onPress={save} loading={busy} />
+        <FormStack>
+          <Segmented options={(['advance', 'payment'] as const).map((k) => ({ value: k, label: PAYMENT_LABELS[k] }))} value={kind} onChange={setKind} />
+          <Text variant="caption" tone="secondary">
+            {kind === 'advance' ? 'Ay içinde verilen avans' : 'Hakediş / maaş ödemesi'}
+          </Text>
+          <Field label="Tutar (₺)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" autoFocus={!!params.workerId} />
+          <DateField label="Tarih" value={date} onChange={setDate} />
+          <Field label="Not" value={note} onChangeText={setNote} placeholder="İsteğe bağlı" />
+        </FormStack>
       </Card>
+      <ErrorText>{error}</ErrorText>
+      <Button title="Kaydet" size="lg" onPress={save} loading={busy} disabled={!workerId || !amount.trim()} />
     </Screen>
   );
 }

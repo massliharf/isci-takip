@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert } from 'react-native';
-import { Button, Card, ErrorText, Field, Screen } from '../../components/ui';
+import { Button, Card, ErrorText, Field, FormStack, Screen } from '../../components/ui';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
@@ -32,12 +32,14 @@ export default function Register() {
   return (
     <Screen>
       <Card>
-        <Field label="Ad Soyad" value={fullName} onChangeText={setFullName} />
-        <Field label="İşletme / Firma adı" value={businessName} onChangeText={setBusinessName} placeholder="Örn. Yılmaz Duvar Ustalık" />
-        <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-        <Field label="Şifre" value={password} onChangeText={setPassword} secureTextEntry />
-        <ErrorText>{error}</ErrorText>
-        <Button title="Üye Ol" onPress={signUp} loading={busy} disabled={!email || !password || !fullName} />
+        <FormStack>
+          <Field label="Ad soyad" value={fullName} onChangeText={setFullName} />
+          <Field label="İşletme / firma adı" value={businessName} onChangeText={setBusinessName} placeholder="Örn. Yılmaz Duvar Ustalık" />
+          <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+          <Field label="Şifre" value={password} onChangeText={setPassword} secureTextEntry placeholder="En az 6 karakter" />
+          <ErrorText>{error}</ErrorText>
+          <Button title="Üye ol" size="lg" onPress={signUp} loading={busy} disabled={!email || !password || !fullName} />
+        </FormStack>
       </Card>
     </Screen>
   );
