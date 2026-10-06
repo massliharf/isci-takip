@@ -176,6 +176,16 @@ export async function createPayment(input: {
   check(await supabase.from('payments').insert(input));
 }
 
+export type PaymentInput = { worker_id: string; pay_date: string; amount: number; kind: PaymentKind; note: string | null; method: PayMethod };
+
+export async function getPayment(id: string): Promise<Payment> {
+  return num(check(await supabase.from('payments').select('*').eq('id', id).single()) as Payment, 'amount');
+}
+
+export async function updatePayment(id: string, input: Partial<PaymentInput>): Promise<void> {
+  check(await supabase.from('payments').update(input).eq('id', id));
+}
+
 export async function deletePayment(id: string): Promise<void> {
   check(await supabase.from('payments').delete().eq('id', id));
 }
@@ -195,6 +205,14 @@ export async function createIncome(input: MoneyInput & { income_date: string }):
   check(await supabase.from('incomes').insert(input));
 }
 
+export async function getIncome(id: string): Promise<Income> {
+  return num(check(await supabase.from('incomes').select('*').eq('id', id).single()) as Income, 'amount');
+}
+
+export async function updateIncome(id: string, input: Partial<MoneyInput & { income_date: string }>): Promise<void> {
+  check(await supabase.from('incomes').update(input).eq('id', id));
+}
+
 export async function deleteIncome(id: string): Promise<void> {
   check(await supabase.from('incomes').delete().eq('id', id));
 }
@@ -210,6 +228,14 @@ export async function listExpenses(start = FAR_PAST, end = FAR_FUTURE): Promise<
 
 export async function createExpense(input: MoneyInput & { expense_date: string }): Promise<void> {
   check(await supabase.from('expenses').insert(input));
+}
+
+export async function getExpense(id: string): Promise<Expense> {
+  return num(check(await supabase.from('expenses').select('*').eq('id', id).single()) as Expense, 'amount');
+}
+
+export async function updateExpense(id: string, input: Partial<MoneyInput & { expense_date: string }>): Promise<void> {
+  check(await supabase.from('expenses').update(input).eq('id', id));
 }
 
 export async function deleteExpense(id: string): Promise<void> {

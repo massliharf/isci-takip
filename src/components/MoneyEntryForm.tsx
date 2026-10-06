@@ -15,18 +15,24 @@ import { Button, Card, ChoiceChips, DateField, ErrorText, Field, FormStack, Quic
 /** Gelir ve gider girişi: tutar, kategori, ödeme yöntemi, şantiye, tarih, açıklama */
 export function MoneyEntryForm({
   kind,
+  initial,
   onSubmit,
+  onDelete,
 }: {
   kind: 'income' | 'expense';
+  /** Düzenleme modunda mevcut kayıt */
+  initial?: MoneyInput & { date: string };
   onSubmit: (v: MoneyInput & { date: string }) => Promise<void>;
+  onDelete?: () => void;
 }) {
   const categories = kind === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState(categories[0].key);
-  const [method, setMethod] = useState<PayMethod>(kind === 'income' ? 'banka' : 'nakit');
-  const [site, setSite] = useState('');
-  const [date, setDate] = useState(toISODate(new Date()));
-  const [description, setDescription] = useState('');
+  const editing = !!initial;
+  const [amount, setAmount] = useState(initial ? String(initial.amount).replace('.', ',') : '');
+  const [category, setCategory] = useState(initial?.category ?? categories[0].key);
+  const [method, setMethod] = useState<PayMethod>(initial?.method ?? (kind === 'income' ? 'banka' : 'nakit'));
+  const [site, setSite] = useState(initial?.site ?? '');
+  const [date, setDate] = useState(initial?.date ?? toISODate(new Date()));
+  const [description, setDescription] = useState(initial?.description ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
@@ -39,7 +45,7 @@ export function MoneyEntryForm({
     try {
       await onSubmit({ date, amount: value, category, method, site: site.trim() || null, description: description.trim() || null });
       successFeedback();
-      toast(`${kind === 'income' ? 'Gelir' : 'Gider'} kaydedildi: ${formatMoney(value)}`);
+      toast(`${kind === 'income' ? 'Gelir' : 'Gider'} ${editing ? 'güncellendi' : 'kaydedildi'}: ${formatMoney(value)}`);
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -50,7 +56,7 @@ export function MoneyEntryForm({
     <>
       <Card>
         <FormStack>
-          <Field label="Tutar (₺)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" autoFocus placeholder="0" style={{ fontSize: 24, height: 56 }} />
+          <Field label="Tutar (₺)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" autoFocus={!editing} placeholder="0" style={{ fontSize: 24, height: 56 }} />
           <View style={{ gap: space.sm }}>
             <Text variant="overline" tone="secondary">
               Kategori
@@ -85,7 +91,8 @@ export function MoneyEntryForm({
         </Card>
       </Section>
       <ErrorText>{error}</ErrorText>
-      <Button title="Kaydet" size="lg" onPress={save} loading={busy} disabled={!amount.trim()} />
+      <Button title={editing ? 'Değişiklikleri kaydet' : 'Kaydet'} size="lg" onPress={save} loading={busy} disabled={!amount.trim()} />
+      {onDelete && <Button title="Kaydı sil" icon="trash-2" variant="danger" onPress={onDelete} />}
     </>
   );
 }

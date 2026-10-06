@@ -357,12 +357,14 @@ export default function WorkerDetail() {
                     title={PAYMENT_LABELS[p.kind]}
                     subtitle={`${formatDate(p.pay_date)}${p.note ? ` · ${p.note}` : ''}`}
                     value={formatMoney(p.amount)}
+                    onPress={() => router.push({ pathname: '/payment/new', params: { id: p.id } })}
                     onLongPress={() => confirmDeletePayment(p)}
+                    chevron
                   />
                 ))}
               </ListCard>
             )}
-            {payments.length > 0 && <Hint>Silmek için kayda basılı tut.</Hint>}
+            {payments.length > 0 && <Hint>Düzenlemek için dokun, hızlı silmek için basılı tut.</Hint>}
           </Section>
 
           <ExportMenu

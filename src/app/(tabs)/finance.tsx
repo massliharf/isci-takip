@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { ExportMenu } from '../../components/ExportMenu';
@@ -55,6 +56,7 @@ type Entry = {
 };
 
 const SIGN: Record<Kind, string> = { income: '+', payment: '−', expense: '−' };
+const EDIT_ROUTE = { income: '/income/new', expense: '/expense/new', payment: '/payment/new' } as const;
 
 /** Bütçe doluluğuna göre renk: yeşil → turuncu → kırmızı */
 const usageColor = (r: number) => (r >= 1 ? palette.negative : r >= 0.8 ? '#E8913A' : palette.positive);
@@ -238,7 +240,9 @@ export default function FinanceScreen() {
                             subtitle={e.sub}
                             value={`${SIGN[e.kind]} ${formatMoney(e.amount)}`}
                             valueTone={e.kind === 'income' ? 'positive' : 'primary'}
+                            onPress={() => router.push({ pathname: EDIT_ROUTE[e.kind], params: { id: e.id } })}
                             onLongPress={() => confirmDelete(e)}
+                            chevron
                           />
                         ))}
                       </ListCard>
@@ -246,7 +250,7 @@ export default function FinanceScreen() {
                   </Appear>
                 ))
               )}
-              {entries.length > 0 && <Hint>Silmek için kayda basılı tut.</Hint>}
+              {entries.length > 0 && <Hint>Düzenlemek için kayda dokun, hızlı silmek için basılı tut.</Hint>}
             </>
           )}
 
