@@ -44,6 +44,15 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "primaryColor": "#FF57AE"
+    "primaryColor": "#FF57AE",
+    "extra": {
+      "eas": {
+        "projectId": "bd96f56c-1c38-448c-af62-1bd42b89aac3"
+      }
+    },
+    "owner": "massliharf",
+    "updates": {
+      "url": "https://u.expo.dev/bd96f56c-1c38-448c-af62-1bd42b89aac3"
+    }
   }
 }

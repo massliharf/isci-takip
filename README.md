@@ -68,6 +68,8 @@ Her push'ta `.github/workflows/pages.yml` web sürümünü derleyip **https://ma
 İlk kurulumda bir kez: GitHub → **Settings → Pages → Source: GitHub Actions**.
 
 ### 5. Expo'ya yayın (EAS Update) — otomatik
+Elle yayın (proje klasöründe): `npm run publish:app -- "mesaj"` ve web için `npm run deploy:web`.
+
 Her push'ta `.github/workflows/eas-update.yml` uygulamayı Expo hesabına `production` dalı olarak yükler.
 İlk kurulumda bir kez:
 1. expo.dev → **Account settings → Access tokens → Create token**.
